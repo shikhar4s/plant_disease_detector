@@ -1,4 +1,5 @@
 import i18n from 'i18next';
+import { featureTranslations } from './features';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
@@ -521,7 +522,9 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources,
+    resources: Object.fromEntries(Object.entries(resources).map(([code, resource]) => [code, { translation: { ...resource.translation, features: featureTranslations[code as keyof typeof featureTranslations] } }])),
+    supportedLngs: ['en', 'hi', 'es', 'fr'],
+    load: 'languageOnly',
     fallbackLng: 'en',
     debug: false,
     interpolation: {

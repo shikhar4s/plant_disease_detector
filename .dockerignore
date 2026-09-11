@@ -1,0 +1,9 @@
+.git
+**/node_modules
+**/dist
+**/__pycache__
+**/*.sqlite3
+**/.env
+**/media
+**/staticfiles
+plant_disease_detector/cnn_model_full.pth

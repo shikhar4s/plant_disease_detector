@@ -1,29 +1,34 @@
-"""
-URL configuration for plant_disease_detector project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
-from django.urls import path,include
+from django.db import connection
+from django.http import FileResponse, JsonResponse
 from django.conf import settings
-from django.conf.urls.static import static
+from django.urls import include, path, re_path
+from django.views.decorators.cache import never_cache
+
+
+def health(request):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+        if not (settings.BASE_DIR / 'deployment_artifacts' / 'plant_disease_model.pth').is_file():
+            return JsonResponse({'status': 'unavailable'}, status=503)
+    except Exception:
+        return JsonResponse({'status': 'unavailable'}, status=503)
+    return JsonResponse({'status': 'ok'})
+
+
+@never_cache
+def frontend(request):
+    index = settings.FRONTEND_DIR / 'index.html'
+    if not index.exists():
+        return JsonResponse({'detail': 'Build the frontend or use the Vite development server.'}, status=503)
+    return FileResponse(index.open('rb'), content_type='text/html')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('healthz', health),
     path('api/users/', include('users.urls')),
     path('api/plant_doctor_ai/', include('plant_doctor_ai.urls')),
+    re_path(r'^(?!api/|admin/|media/|static/|assets/).*$', frontend),
 ]
-
-
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

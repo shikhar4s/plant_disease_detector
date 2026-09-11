@@ -1,6 +1,5 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { PhoneIcon, UserIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import { PhoneIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 
 const ContactSection = () => {
   const { t } = useTranslation();
@@ -12,24 +11,7 @@ const ContactSection = () => {
       role: 'B.Tech AIML',
       avatar: 'SS'
     },
-    {
-      name: 'Rishabh Uke',
-      contact: '9630979187',
-      role: 'B.Tech AIML',
-      avatar: 'RU'
-    },
-    {
-      name: 'Ananya Jain',
-      contact: '6265383328',
-      role: 'B.Tech IT',
-      avatar: 'AJ'
-    },
-    {
-      name: 'Akshata Lokhande',
-      contact: '7489964656',
-      role: 'B.Tech IT',
-      avatar: 'AL'
-    }
+
   ];
 
   const getRandomColor = (index: number) => {
@@ -55,7 +37,7 @@ const ContactSection = () => {
         {/* Team Members */}
         <div className="lg:col-span-2">
           <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-            <h2 className="text-xl font-semibold text-gray-800 mb-6">{t('dashboard.contact.teamMembers')}</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-6">{t('features.developer')}</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {teamMembers.map((member, index) => (
@@ -131,8 +113,8 @@ const ContactSection = () => {
           <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-6 border border-green-200">
             <h3 className="text-lg font-semibold text-green-800 mb-3">About PlantDoc</h3>
             <p className="text-green-700 text-sm leading-relaxed">
-              PlantDoc is an AI-powered plant disease detection system developed by a passionate team of students. 
-              Our mission is to help farmers and gardeners identify plant diseases early and provide effective treatment solutions.
+              PlantDoc is an AI-powered plant disease detection system maintained by Shikhar Shrivastava. 
+              The aim is to help farmers and gardeners identify plant diseases early and provide effective treatment solutions.
             </p>
           </div>
 

@@ -1,261 +1,108 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CalendarIcon, EyeIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { api, apiResponse, downloadBlob, messageOf } from '../../lib/api';
+import type { Analysis, HistoryPage } from '../../lib/types';
+import { usePlantData } from '../../contexts/PlantDataContext';
+import { useAuth } from '../../contexts/AuthContext';
 import ResultModal from './ResultModal';
 
-interface HistoryItem {
-  id: number;
-  image_url: string;
-  created_at: string;
-  disease_name: string;
-  confidence: number;
-  severity: 'Low' | 'Medium' | 'High';
-  recommended_treatment: string;
-  expected_recovery_time: string;
-  prevention_tips: string[];
-}
-
-interface PlantImage {
-  id: string;
-  file: File;
-  preview: string;
-  uploadDate: Date;
-  result?: {
-    disease: string;
-    confidence: number;
-    severity: 'Low' | 'Medium' | 'High';
-    cure: string;
-    recoveryTime: string;
-    preventiveMeasures: string[];
-  };
-}
-
-const useAuth = () => {
-  const token = localStorage.getItem('access_token');
-  return { token };
-};
-
-const API_BASE_URL = 'http://127.0.0.1:8000';
-
-const HistorySection = () => {
+export default function HistorySection() {
   const { t } = useTranslation();
-  const { token } = useAuth();
-
-  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const { selectedImage, setSelectedImage } = usePlantData();
+  const { reloadUser } = useAuth();
+  const [data, setData] = useState<HistoryPage | null>(null);
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [revision, setRevision] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [modalImage, setModalImage] = useState<PlantImage | null>(null);
+  const [error, setError] = useState('');
+  const [modal, setModal] = useState<Analysis | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const params = new URLSearchParams({ q: query, status: filter, page: String(page) }).toString();
 
   useEffect(() => {
-    const fetchHistory = async () => {
-      if (!token) {
-        setError("Authentication is required to view analysis history.");
-        setIsLoading(false);
-        return;
-      }
+    const controller = new AbortController();
+    setIsLoading(true);
+    setError('');
+    api<HistoryPage>('/api/plant_doctor_ai/history/?' + params, { signal: controller.signal })
+      .then(setData).catch(error => { if (!controller.signal.aborted) setError(messageOf(error)); })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
+    return () => controller.abort();
+  }, [params, revision]);
 
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/plant_doctor_ai/history/`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail || t('dashboard.history.fetchError'));
-        }
-        
-        const data = await response.json();
-        const results = data.results || data;
-        setHistoryItems(Array.isArray(results) ? results : []);
-      } catch (err: any) {
-        setError(err.message);
-        console.error("Failed to fetch history:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchHistory();
-  }, [token, t]);
-
-  const handleDelete = async (imageId: number) => {
-    const originalHistory = [...historyItems];
-    setHistoryItems(currentItems => currentItems.filter(item => item.id !== imageId));
-
+  async function remove(item: Analysis) {
+    if (!window.confirm(t('features.confirmDelete'))) return;
+    setDeleting(item.id);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/plant_doctor_ai/history/${imageId}/`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok && response.status !== 204) {
-        throw new Error(t('dashboard.history.deleteError'));
-      }
-      toast.success(t('dashboard.history.deleteSuccess'));
-    } catch (err: any) {
-      toast.error(err.message);
-      setHistoryItems(originalHistory);
-    }
-  };
-
-  const handleViewDetails = (item: HistoryItem) => {
-    const imageForModal: PlantImage = {
-      id: item.id.toString(),
-      file: new File([], item.image_url.split('/').pop() || 'image.jpg', { type: 'image/jpeg' }),
-      preview: item.image_url,
-      uploadDate: new Date(item.created_at),
-      result: {
-        disease: item.disease_name.replace(/___/g, ' ').replace(/_/g, ' '),
-        confidence: item.confidence,
-        severity: item.severity,
-        cure: item.recommended_treatment,
-        recoveryTime: item.expected_recovery_time,
-        preventiveMeasures: item.prevention_tips,
-      },
-    };
-    setModalImage(imageForModal);
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'Low': return 'bg-green-100 text-green-800';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800';
-      case 'High': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="max-w-6xl mx-auto text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div>
-        <p className="mt-4 text-gray-600">{t('common.loading')}</p>
-      </div>
-    );
+      await api('/api/plant_doctor_ai/history/' + item.id + '/', { method: 'DELETE' });
+      if (selectedImage?.id === item.id) setSelectedImage(null);
+      if (data?.results.length === 1 && page > 1) setPage(page - 1);
+      else setRevision(value => value + 1);
+      void reloadUser().catch(() => {});
+      toast.success(t('features.deleted'));
+    } catch (error) { toast.error(messageOf(error)); } finally { setDeleting(null); }
+  }
+  async function exportHistory() {
+    setExporting(true);
+    try {
+      const response = await apiResponse('/api/plant_doctor_ai/history/export/?' + new URLSearchParams({ q: query, status: filter }));
+      downloadBlob(await response.blob(), 'plantdoc-history.csv');
+    } catch (error) { toast.error(messageOf(error)); } finally { setExporting(false); }
+  }
+  function update(item: Analysis) {
+    setModal(item);
+    setData(previous => previous ? { ...previous, results: previous.results.map(old => old.id === item.id ? item : old) } : previous);
+    if (selectedImage?.id === item.id) setSelectedImage(item);
   }
 
-  if (error) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-red-50 border-l-4 border-red-400 p-6 rounded-lg">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <ExclamationTriangleIcon className="h-6 w-6 text-red-400" aria-hidden="true" />
-            </div>
-            <div className="ml-3">
-              <h3 className="text-lg font-medium text-red-800">{t('common.error')}</h3>
-              <div className="mt-2 text-md text-red-700">
-                <p>{error}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (historyItems.length === 0) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">{t('dashboard.history.title')}</h1>
-          <p className="text-gray-600">{t('dashboard.history.subtitle')}</p>
-        </div>
-        <div className="bg-white/50 backdrop-blur-sm rounded-xl p-12 border border-white/20 text-center">
-          <CalendarIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-600 mb-2">{t('dashboard.history.noHistory')}</h3>
-          <p className="text-gray-500">{t('dashboard.history.noHistorySubtext')}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">{t('dashboard.history.title')}</h1>
-        <p className="text-gray-600">{t('dashboard.history.subtitle')}</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {historyItems.map((item) => (
-          <div key={item.id} className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden flex flex-col">
-            <div className="h-48 bg-gray-100 flex items-center justify-center">
-              <img
-                src={item.image_url}
-                alt={t('dashboard.history.analysisAlt')}
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
-
-            <div className="p-4 space-y-3 flex-grow flex flex-col">
-              <div className="flex items-center text-sm text-gray-600">
-                <CalendarIcon className="w-4 h-4 mr-2" />
-                {formatDate(item.created_at)}
-              </div>
-              
-              <div className="flex-grow space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-800 truncate pr-2">{item.disease_name.replace(/___/g, ' ').replace(/_/g, ' ')}</h3>
-                  <span className="text-sm font-medium text-green-600 flex-shrink-0">
-                    {Math.round(item.confidence * 100)}%
-                  </span>
-                </div>
-                <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getSeverityColor(item.severity)}`}>
-                  {t(`common.${item.severity.toLowerCase()}`)} {t('dashboard.history.severity')}
-                </span>
-              </div>
-              
-              <div className="flex space-x-2 pt-2">
-                <button
-                  onClick={() => handleViewDetails(item)}
-                  className="flex-1 bg-green-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-green-600 transition-colors duration-200 flex items-center justify-center space-x-1"
-                >
-                  <EyeIcon className="w-4 h-4" />
-                  <span>{t('dashboard.history.view')}</span>
-                </button>
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  className="bg-red-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-red-600 transition-colors duration-200 flex items-center justify-center"
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      {modalImage && (
-        <ResultModal
-          isOpen={!!modalImage}
-          image={modalImage}
-          onClose={() => setModalImage(null)}
-        />
-      )}
+  return <div className="max-w-6xl mx-auto">
+    <div className="flex flex-wrap justify-between items-center gap-4 mb-7">
+      <div><h1 className="text-3xl font-bold text-gray-800 mb-2">{t('dashboard.history.title')}</h1>
+        <p className="text-gray-600">{t('dashboard.history.subtitle')}</p></div>
+      <button onClick={() => void exportHistory()} disabled={exporting || !data?.count}
+        className="border border-green-600 text-green-700 bg-white rounded-lg px-4 py-2 disabled:opacity-50">{t('features.exportCSV')}</button>
     </div>
-  );
-};
-
-export default HistorySection;
+    <form onSubmit={event => { event.preventDefault(); setQuery(search.trim()); setPage(1); }} className="flex flex-wrap gap-3 mb-6">
+      <input aria-label={t('features.searchHistory')} value={search} onChange={event => setSearch(event.target.value)}
+        placeholder={t('features.searchHistory')} className="flex-1 min-w-48 rounded-lg border p-3" maxLength={200} />
+      <select aria-label={t('features.filterStatus')} value={filter} onChange={event => { setFilter(event.target.value); setPage(1); }}
+        className="rounded-lg border p-3">
+        <option value="">{t('features.allResults')}</option>
+        {['healthy', 'possible_disease', 'uncertain'].map(status => <option key={status} value={status}>{t('features.' + status)}</option>)}
+      </select>
+      <button className="bg-green-600 text-white px-5 rounded-lg py-3">{t('features.search')}</button>
+    </form>
+    {isLoading ? <p role="status" className="p-8 text-center">{t('features.loading')}</p> :
+      error ? <div role="alert" className="bg-red-50 p-6 rounded-xl"><p>{error}</p><button onClick={() => setRevision(value => value + 1)} className="mt-3 underline">{t('features.retry')}</button></div> :
+      !data?.results.length ? <div className="bg-white/60 p-12 text-center rounded-xl"><h2 className="font-semibold text-lg">{t('features.noResults')}</h2>
+        <p className="text-gray-600 mt-2">Upload a leaf photo or try a different search.</p></div> :
+      <>
+        <p className="text-sm text-gray-600 mb-4">{data.count} {t('features.savedResults')}</p>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          {data.results.map(item => <article key={item.id} className="bg-white/80 rounded-xl overflow-hidden border">
+            {item.image_url ? <img src={item.image_url} alt="Saved leaf analysis" loading="lazy" className="w-full h-40 object-contain bg-gray-50" /> :
+              <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-500">Preview unavailable</div>}
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</p>
+              <h2 className="font-semibold text-gray-800">{item.disease}</h2>
+              <p className="text-sm text-green-700">{t('features.' + item.prediction_status)} · {(item.confidence * 100).toFixed(1)}%</p>
+              <div className="flex justify-between gap-3">
+                <button onClick={() => { setModal(item); setSelectedImage(item); }} className="text-green-700 font-medium">{t('features.viewResult')}</button>
+                <button onClick={() => void remove(item)} disabled={deleting !== null} className="text-red-600 disabled:opacity-50">{t('features.delete')}</button>
+              </div>
+            </div>
+          </article>)}
+        </div>
+        <div className="flex justify-center items-center gap-5 my-7">
+          <button disabled={!data.previous} onClick={() => setPage(value => value - 1)} className="border rounded-lg px-4 py-2 disabled:opacity-40">{t('features.previous')}</button>
+          <span>{page} / {Math.max(1, Math.ceil(data.count / 12))}</span>
+          <button disabled={!data.next} onClick={() => setPage(value => value + 1)} className="border rounded-lg px-4 py-2 disabled:opacity-40">{t('features.next')}</button>
+        </div>
+      </>}
+    {modal && <ResultModal image={modal} isOpen onClose={() => setModal(null)} onUpdate={update} />}
+  </div>;
+}

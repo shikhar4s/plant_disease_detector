@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { api, messageOf } from '../../lib/api';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChartBarIcon, EyeIcon, CheckCircleIcon, ExclamationTriangleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 
-// --- API Configuration ---
-const API_BASE_URL = 'http://127.0.0.1:8000'; // Assuming this is your base URL
 const ANALYTICS_API_ENDPOINT = '/api/plant_doctor_ai/analytics/';
 
 // --- TypeScript Interfaces for API Response ---
@@ -22,34 +21,8 @@ interface DistributionItem {
 interface AnalyticsData {
   summary: AnalyticsSummary;
   diseaseDistribution: DistributionItem[];
-  severityDistribution: DistributionItem[];
+  statusDistribution: DistributionItem[];
 }
-
-const apiClient = {
-  get: async (url: string) => {
-    const getAuthToken = () => localStorage.getItem('access_token');
-    const token = getAuthToken();
-
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${API_BASE_URL}${url}`, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.error || `Request failed with status ${response.status}`);
-    }
-    return response.json();
-  }
-};
 
 const AnalyticsSkeleton = () => (
   <div className="space-y-8 animate-pulse">
@@ -76,12 +49,12 @@ const AnalyticsSection = () => {
     const fetchAnalytics = async () => {
       try {
         setIsLoading(true);
-        const data: AnalyticsData = await apiClient.get(ANALYTICS_API_ENDPOINT);
+        const data: AnalyticsData = await api<AnalyticsData>(ANALYTICS_API_ENDPOINT);
         setAnalyticsData(data);
         setError(null);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to fetch analytics data:", err);
-        setError(err.message || t('dashboard.analytics.error.generic'));
+        setError(messageOf(err));
       } finally {
         setIsLoading(false);
       }
@@ -128,7 +101,7 @@ const AnalyticsSection = () => {
     );
   }
   
-  const { summary, diseaseDistribution, severityDistribution } = analyticsData;
+  const { summary, diseaseDistribution, statusDistribution } = analyticsData;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -167,7 +140,7 @@ const AnalyticsSection = () => {
           <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-white/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">{t('dashboard.analytics.successRate')}</p>
+                <p className="text-sm text-gray-600">{t('features.completionRate')}</p>
                 <p className="text-2xl font-bold text-gray-800">{summary.successRate}%</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
@@ -202,7 +175,7 @@ const AnalyticsSection = () => {
                     <div className="w-32 bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-green-500 h-2 rounded-full" 
-                        style={{ width: `${(item.value / summary.analyzed) * 100}%` }}
+                        style={{ width: `${(item.value / Math.max(1, summary.analyzed)) * 100}%` }}
                       ></div>
                     </div>
                     <span className="text-sm font-medium text-gray-800 w-8 text-right">{item.value}</span>
@@ -214,19 +187,19 @@ const AnalyticsSection = () => {
 
           {/* Severity Distribution */}
           <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('dashboard.analytics.severityDistribution')}</h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('features.statusDistribution')}</h3>
             <div className="space-y-3">
-              {severityDistribution.map((item) => {
-                const color = item.name === 'Low' ? 'bg-green-500' : 
-                              item.name === 'Medium' ? 'bg-yellow-500' : 'bg-red-500';
+              {statusDistribution.map((item) => {
+                const color = item.name === 'healthy' ? 'bg-green-500' : 
+                              item.name === 'uncertain' ? 'bg-yellow-500' : 'bg-red-500';
                 return (
                   <div key={item.name} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{t(`common.${item.name.toLowerCase()}`)}</span>
+                    <span className="text-sm text-gray-600">{t('features.' + item.name)}</span>
                     <div className="flex items-center space-x-2 flex-shrink-0">
                       <div className="w-32 bg-gray-200 rounded-full h-2">
                         <div 
                           className={`${color} h-2 rounded-full`}
-                          style={{ width: `${(item.value / summary.analyzed) * 100}%` }}
+                          style={{ width: `${(item.value / Math.max(1, summary.analyzed)) * 100}%` }}
                         ></div>
                       </div>
                       <span className="text-sm font-medium text-gray-800 w-8 text-right">{item.value}</span>

@@ -1,3 +1,4 @@
+import { messageOf } from '../../lib/api';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +13,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, authError } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,13 +24,12 @@ const Login = () => {
       return;
     }
 
-    const success = await login(email, password);
-    if (success) {
+    try {
+      await login(email, password);
       toast.success('Login successful!');
       navigate('/dashboard');
-    } else {
-      toast.error('Invalid credentials');
-    }
+    } catch (error) { toast.error(messageOf(error)); }
+
   };
 
   return (
@@ -56,13 +56,14 @@ const Login = () => {
             <p className="text-gray-600">{t('auth.login.subtitle')}</p>
           </div>
 
+          {authError && <p role="alert" className="text-red-700 mb-4">{authError}</p>}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.login.email')}
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">{t('auth.login.email')}
               </label>
               <input
                 type="email"
+                id="email" autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm bg-white/50 transition-all duration-200"
@@ -72,13 +73,13 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.login.password')}
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">{t('auth.login.password')}
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
+                  id="password" autoComplete="current-password"
+                value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm bg-white/50 transition-all duration-200 pr-12"
                   placeholder={t('auth.login.passwordPlaceholder')}
@@ -86,6 +87,7 @@ const Login = () => {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 transition-colors duration-200"
                 >

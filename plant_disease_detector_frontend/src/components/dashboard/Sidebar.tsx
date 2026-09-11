@@ -23,6 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
 
   const menuItems = [
     { id: 'upload', label: t('dashboard.sidebar.upload'), icon: CloudArrowUpIcon },
+    { id: 'plants', label: t('features.supportedPlants'), icon: Leaf },
     { id: 'history', label: t('dashboard.sidebar.history'), icon: DocumentTextIcon },
     { id: 'analytics', label: t('dashboard.sidebar.analytics'), icon: ChartBarIcon },
     { id: 'profile', label: t('dashboard.sidebar.profile'), icon: UserIcon },
@@ -30,7 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   ];
 
   return (
-    <div className="w-64 bg-white/80 backdrop-blur-lg border-r border-white/20 min-h-screen flex flex-col">
+    <div className="w-full md:w-64 md:shrink-0 bg-white/80 backdrop-blur-lg border-r border-white/20 md:min-h-screen flex flex-col">
       {/* Logo */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center space-x-3">
@@ -59,9 +60,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
 
       {/* Menu Items */}
       <nav className="flex-1 p-4">
-        <ul className="space-y-2">
+        <ul className="flex md:block gap-2 overflow-x-auto md:space-y-2">
           {menuItems.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className="shrink-0">
               <button
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${

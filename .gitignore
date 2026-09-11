@@ -27,3 +27,7 @@ Thumbs.db
 
 # Git
 .git/
+# Runtime data and private uploads
+plant_disease_detector/media/
+plant_disease_detector/staticfiles/
+!**/.env.example

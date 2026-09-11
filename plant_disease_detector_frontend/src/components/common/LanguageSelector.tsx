@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LanguageIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon } from '@heroicons/react/24/outline';
 
 const LanguageSelector = () => {
   const { i18n } = useTranslation();
@@ -9,8 +9,8 @@ const LanguageSelector = () => {
   const languages = [
     { code: 'en', name: 'English', flag: '🇺🇸' },
     { code: 'hi', name: 'हिंदी', flag: '🇮🇳' },
-    // { code: 'es', name: 'Español', flag: '🇪🇸' },
-    // { code: 'fr', name: 'Français', flag: '🇫🇷' },
+    { code: 'es', name: 'Español', flag: '🇪🇸' },
+    { code: 'fr', name: 'Français', flag: '🇫🇷' },
   ];
 
   const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];

@@ -1,131 +1,79 @@
-import React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { XMarkIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon } from '@heroicons/react/24/outline';
+import { toast } from 'react-hot-toast';
+import { api, downloadBlob, messageOf } from '../../lib/api';
+import type { Analysis } from '../../lib/types';
 
-interface PlantImage {
-  id: string;
-  file: File;
-  preview: string;
-  uploadDate: Date;
-  result?: {
-    disease: string;
-    confidence: number;
-    severity: 'Low' | 'Medium' | 'High';
-    cure: string;
-    recoveryTime: string;
-    preventiveMeasures: string[];
-  };
-}
+interface Props { image: Analysis; isOpen: boolean; onClose: () => void; onUpdate?: (image: Analysis) => void }
 
-interface ResultModalProps {
-  image: PlantImage;
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-const ResultModal: React.FC<ResultModalProps> = ({ image, isOpen, onClose }) => {
+export default function ResultModal({ image, isOpen, onClose, onUpdate }: Props) {
   const { t } = useTranslation();
-  const { result } = image;
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [notes, setNotes] = useState(image.notes);
+  const [isSaving, setIsSaving] = useState(false);
+  useEffect(() => { setNotes(image.notes); }, [image.id, image.notes]);
+  useEffect(() => {
+    const element = dialog.current;
+    if (isOpen && !element?.open) element?.showModal();
+    if (!isOpen && element?.open) element.close();
+    return () => { element?.close(); };
+  }, [isOpen]);
 
-  if (!isOpen || !result) return null;
+  async function saveNotes() {
+    setIsSaving(true);
+    try {
+      const result = await api<Analysis>('/api/plant_doctor_ai/history/' + image.id + '/', {
+        method: 'PATCH', body: JSON.stringify({ notes }),
+      });
+      onUpdate?.(result);
+      toast.success(t('features.notesSaved'));
+    } catch (error) { toast.error(messageOf(error)); } finally { setIsSaving(false); }
+  }
+  function downloadReport() {
+    const text = ['PlantDoc analysis report', 'Date: ' + new Date(image.created_at).toLocaleString(),
+      'Possible match: ' + image.disease, 'Model confidence: ' + (image.confidence * 100).toFixed(1) + '%',
+      'Confidence is not disease severity. This is not a confirmed diagnosis.',
+      '', 'Care guide', image.recommended_treatment, '', 'Prevention',
+      ...image.prevention_tips.map(tip => '- ' + tip), '', 'Saved notes', image.notes].join('\n');
+    downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), 'plantdoc-analysis-' + image.id + '.txt');
+  }
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'Low': return 'text-green-600 bg-green-100';
-      case 'Medium': return 'text-yellow-600 bg-yellow-100';
-      case 'High': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case 'Low': return <CheckCircleIcon className="w-5 h-5" />;
-      case 'Medium': return <ExclamationTriangleIcon className="w-5 h-5" />;
-      case 'High': return <XCircleIcon className="w-5 h-5" />;
-      default: return null;
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-800">{t('result.title')}</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors duration-200"
-          >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-6">
-          <div className="flex justify-center">
-            <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-              <img
-                src={image.preview}
-                alt="Plant analysis"
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
-          </div>
-
-          <div className="text-center space-y-4">
-            <div className="space-y-2">
-              <h3 className="text-3xl font-bold text-gray-800">{result.disease}</h3>
-              <div className="flex items-center justify-center space-x-4">
-                <span className={`inline-flex items-center space-x-1 px-4 py-2 rounded-full text-sm font-medium ${getSeverityColor(result.severity)}`}>
-                  {getSeverityIcon(result.severity)}
-                  <span>{t(`common.${result.severity.toLowerCase()}`)} {t('result.severity')}</span>
-                </span>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {Math.round(result.confidence * 100)}%
-                  </div>
-                  <div className="text-sm text-gray-600">{t('result.confidence')}</div>
-                </div>
-              </div>
-              <p className="text-gray-600">
-                {t('result.recoveryTime')}: <span className="font-semibold">{result.recoveryTime}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-green-50 rounded-xl p-6 border border-green-200">
-            <h4 className="text-lg font-bold text-green-800 mb-3 flex items-center">
-              <CheckCircleIcon className="w-5 h-5 mr-2" />
-              {t('result.treatment')}
-            </h4>
-            <p className="text-green-700 leading-relaxed">{result.cure}</p>
-          </div>
-
-          <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-            <h4 className="text-lg font-bold text-blue-800 mb-3">{t('result.prevention')}</h4>
-            <ul className="text-blue-700 space-y-2">
-              {(result.preventiveMeasures || []).map((measure, index) => (
-                <li key={index} className="flex items-start space-x-3">
-                  <span className="text-blue-500 mt-1 font-bold">•</span>
-                  <span className="leading-relaxed">{measure}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
-          <div className="flex justify-center space-x-4">
-            <button
-              onClick={onClose}
-              className="bg-green-500 text-white px-8 py-3 rounded-lg hover:bg-green-600 transition-colors duration-200 font-medium"
-            >
-              {t('result.gotIt')}
-            </button>
-          </div>
-        </div>
-      </div>
+  return <dialog ref={dialog} onCancel={onClose} onClose={onClose} aria-labelledby="result-heading"
+    className="rounded-2xl shadow-2xl w-[calc(100%-2rem)] max-w-2xl max-h-[90vh] p-0 backdrop:bg-black/50">
+    <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
+      <h2 id="result-heading" className="text-xl font-bold text-gray-800">{t('result.title')}</h2>
+      <button onClick={onClose} aria-label={t('features.close')} className="p-2 rounded-lg hover:bg-gray-100">
+        <XMarkIcon className="w-6 h-6" /></button>
     </div>
-  );
-};
-
-export default ResultModal;
+    <div className="p-6 space-y-5">
+      {image.image_url && <img src={image.image_url} alt="Analyzed leaf" className="max-h-56 mx-auto rounded-xl" />}
+      <p className="text-center text-green-700 font-semibold">{t('features.' + image.prediction_status)}</p>
+      <h3 className="text-2xl font-bold text-center text-gray-800">{image.disease}</h3>
+      <p className="text-center">{t('features.modelConfidence')}: <strong>{(image.confidence * 100).toFixed(1)}%</strong></p>
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
+        A photo cannot establish disease severity or recovery time. A high score can still be wrong, especially for unsupported plants or unrelated images.
+      </div>
+      {image.top_predictions.length > 0 && <section>
+        <h4 className="font-semibold mb-3">{t('features.topMatches')}</h4>
+        {image.top_predictions.map(match => <div key={match.label} className="mb-3">
+          <div className="flex justify-between gap-4 text-sm mb-1"><span>{match.disease}</span><span>{(match.confidence * 100).toFixed(1)}%</span></div>
+          <div className="bg-gray-100 h-2 rounded-full"><div className="bg-green-500 h-2 rounded-full" style={{ width: match.confidence * 100 + '%' }} /></div>
+        </div>)}
+      </section>}
+      <section className="bg-green-50 rounded-xl p-5"><h4 className="font-bold text-green-900 mb-2">{image.guidance_source === 'gemini' ? t('result.treatment') : t('features.careGuide')}</h4>
+        <p className="text-green-800">{image.recommended_treatment}</p></section>
+      <section className="bg-blue-50 rounded-xl p-5"><h4 className="font-bold text-blue-900 mb-2">{t('result.prevention')}</h4>
+        <ul className="list-disc pl-5 space-y-2 text-blue-800">{image.prevention_tips.map(tip => <li key={tip}>{tip}</li>)}</ul></section>
+      <section>
+        <label htmlFor="analysis-notes" className="block font-semibold mb-2">{t('features.notes')}</label>
+        <textarea id="analysis-notes" value={notes} onChange={event => setNotes(event.target.value)} maxLength={2000}
+          rows={3} placeholder="Record symptoms, plant location or follow-up changes."
+          className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-green-500" />
+        <button onClick={() => void saveNotes()} disabled={isSaving || notes === image.notes}
+          className="mt-2 bg-green-600 text-white rounded-lg px-4 py-2 disabled:opacity-50">{t('features.saveNotes')}</button>
+      </section>
+      <button onClick={downloadReport} className="border border-green-600 text-green-700 rounded-lg px-5 py-2">{t('features.downloadReport')}</button>
+    </div>
+  </dialog>;
+}

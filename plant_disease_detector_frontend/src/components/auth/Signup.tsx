@@ -1,3 +1,4 @@
+import { messageOf } from '../../lib/api';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -31,18 +32,17 @@ const Signup = () => {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (password.length < 8) {
+      toast.error('Password must be at least 8 characters');
       return;
     }
 
-    const success = await signup(email, password, name);
-    if (success) {
+    try {
+      await signup(email, password, name);
       toast.success('Account created successfully!');
       navigate('/dashboard');
-    } else {
-      toast.error('Failed to create account');
-    }
+    } catch (error) { toast.error(messageOf(error)); }
+
   };
 
   return (
@@ -71,11 +71,11 @@ const Signup = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.signup.name')}
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">{t('auth.signup.name')}
               </label>
               <input
                 type="text"
+                id="name" autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm bg-white/50 transition-all duration-200"
@@ -85,11 +85,11 @@ const Signup = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.signup.email')}
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">{t('auth.signup.email')}
               </label>
               <input
                 type="email"
+                id="email" autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm bg-white/50 transition-all duration-200"
@@ -99,13 +99,13 @@ const Signup = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.signup.password')}
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">{t('auth.signup.password')}
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
+                  id="password" autoComplete="new-password"
+                value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm bg-white/50 transition-all duration-200 pr-12"
                   placeholder={t('auth.signup.passwordPlaceholder')}
@@ -113,6 +113,7 @@ const Signup = () => {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 transition-colors duration-200"
                 >
@@ -126,13 +127,13 @@ const Signup = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.signup.confirmPassword')}
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">{t('auth.signup.confirmPassword')}
               </label>
               <div className="relative">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
+                  id="confirmPassword" autoComplete="new-password"
+                value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm bg-white/50 transition-all duration-200 pr-12"
                   placeholder={t('auth.signup.confirmPasswordPlaceholder')}
@@ -140,6 +141,7 @@ const Signup = () => {
                 />
                 <button
                   type="button"
+                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 transition-colors duration-200"
                 >

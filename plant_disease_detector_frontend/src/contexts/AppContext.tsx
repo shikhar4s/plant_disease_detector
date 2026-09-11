@@ -18,7 +18,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const handleLanguageChange = (lng: string) => {
-      console.log(`Language changed to: ${lng}`); // For debugging
+      document.documentElement.lang = lng;
       setLanguage(lng);
     };
 

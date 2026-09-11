@@ -5,7 +5,7 @@ class UserManager(BaseUserManager):
     def create_user(self, email, full_name, password=None):
         if not email:
             raise ValueError("Users must have an email address")
-        email = self.normalize_email(email)
+        email = self.normalize_email(email).strip().lower()
         user = self.model(email=email, full_name=full_name)
         user.set_password(password)
         user.save(using=self._db)
@@ -21,6 +21,7 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255)
+    photo_preview = models.TextField(blank=True)
     photo = models.ImageField(upload_to='profiles/', null=True, blank=True)
     date_joined = models.DateTimeField(auto_now_add=True)
     total_uploads = models.IntegerField(default=0)

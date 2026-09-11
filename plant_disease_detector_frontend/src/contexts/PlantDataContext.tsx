@@ -1,89 +1,22 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-interface PlantImage {
-  id: string;
-  file: File;
-  preview: string;
-  uploadDate: Date;
-  result?: DetectionResult;
-}
-
-interface DetectionResult {
-  disease: string;
-  confidence: number;
-  severity: 'Low' | 'Medium' | 'High';
-  cure: string;
-  recoveryTime: string;
-  preventiveMeasures: string[];
-}
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { useAuth } from './AuthContext';
+import type { Analysis } from '../lib/types';
 
 interface PlantDataContextType {
-  images: PlantImage[];
-  addImage: (file: File) => string;
-  updateImageResult: (id: string, result: DetectionResult) => void;
-  removeImage: (id: string) => void;
-  selectedImage: PlantImage | null;
-  setSelectedImage: (image: PlantImage | null) => void;
+  selectedImage: Analysis | null;
+  setSelectedImage: (image: Analysis | null) => void;
 }
-
 const PlantDataContext = createContext<PlantDataContextType | undefined>(undefined);
 
-export const usePlantData = () => {
+export function usePlantData() {
   const context = useContext(PlantDataContext);
-  if (context === undefined) {
-    throw new Error('usePlantData must be used within a PlantDataProvider');
-  }
+  if (!context) throw new Error('usePlantData must be used within PlantDataProvider');
   return context;
-};
-
-interface PlantDataProviderProps {
-  children: ReactNode;
 }
 
-export const PlantDataProvider: React.FC<PlantDataProviderProps> = ({ children }) => {
-  const [images, setImages] = useState<PlantImage[]>([]);
-  const [selectedImage, setSelectedImage] = useState<PlantImage | null>(null);
-
-  const addImage = (file: File): string => {
-    const id = Date.now().toString();
-    const preview = URL.createObjectURL(file);
-    
-    const newImage: PlantImage = {
-      id,
-      file,
-      preview,
-      uploadDate: new Date(),
-    };
-    
-    setImages(prev => [newImage, ...prev]);
-    return id;
-  };
-
-  const updateImageResult = (id: string, result: DetectionResult) => {
-    setImages(prev => prev.map(img => 
-      img.id === id ? { ...img, result } : img
-    ));
-    
-    setSelectedImage(prev => 
-      prev?.id === id ? { ...prev, result } : prev
-    );
-  };
-
-  const removeImage = (id: string) => {
-    setImages(prev => prev.filter(img => img.id !== id));
-    if (selectedImage?.id === id) {
-      setSelectedImage(null);
-    }
-  };
-
-  const value = {
-    images,
-    addImage,
-    updateImageResult,
-    removeImage,
-    selectedImage,
-    setSelectedImage,
-  };
-
-  return <PlantDataContext.Provider value={value}>{children}</PlantDataContext.Provider>;
-};
+export function PlantDataProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [selectedImage, setSelectedImage] = useState<Analysis | null>(null);
+  useEffect(() => { setSelectedImage(null); }, [user?.id]);
+  return <PlantDataContext.Provider value={{ selectedImage, setSelectedImage }}>{children}</PlantDataContext.Provider>;
+}

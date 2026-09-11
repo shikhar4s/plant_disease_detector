@@ -1,179 +1,148 @@
-from rest_framework.views import APIView
-from rest_framework.generics import ListAPIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
-from django.db.models import Avg, Count
-from django.db import transaction
-
-from .services.model_service import model_service
-from .services.gemini_service import gemini_service
-from .models import AnalysisResult
-from users.models import User
-from .serializers import AnalysisResultSerializer, ChatbotRequestSerializer
+import csv
 import logging
 
-def infer_severity(confidence):
-    """
-    A simple function to infer disease severity from prediction confidence.
-    This is a placeholder logic. You might want to develop a more
-    sophisticated method based on disease type.
-    """
-    if confidence > 0.9:
-        return AnalysisResult.Severity.HIGH
-    elif confidence > 0.75:
-        return AnalysisResult.Severity.MEDIUM
-    else:
-        return AnalysisResult.Severity.LOW
+from django.db import transaction
+from django.db.models import Avg, Count, F, Q
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from rest_framework import status
+from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .images import read_image, preview_data_uri
+from .models import AnalysisResult
+from .serializers import AnalysisResultSerializer, ChatbotRequestSerializer
+from .services.care_guide import language_code
+from .services.gemini_service import gemini_service
+from .services.model_service import model_service, class_names, display_name
+
+logger = logging.getLogger(__name__)
+
 
 class AnalyzePlantView(APIView):
-    """
-    Handles the image upload, analysis, and returns the full result.
-    """
-    permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_scope = 'analyze'
 
-    @transaction.atomic
-    def post(self, request, *args, **kwargs):
-        image_file = request.data.get('image')
-        language = request.headers.get('Language')
-        
-        if not image_file:
-            return Response(
-                {"error": "Image file not provided."},
-                status=status.HTTP_400_BAD_REQUEST
+    def post(self, request):
+        image = read_image(request.FILES.get('image'))
+        language = language_code(request.headers.get('Language'))
+        type(request.user).objects.filter(pk=request.user.pk).update(total_uploads=F('total_uploads') + 1)
+        try:
+            prediction = model_service.predict(image)
+        except Exception:
+            logger.exception('Plant model inference failed')
+            return Response({'error': 'Analysis is temporarily unavailable. Please try again shortly.'},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        guidance = gemini_service.get_treatment_info(prediction['disease'], language, prediction['confidence'] < 0.7)
+        with transaction.atomic():
+            analysis = AnalysisResult.objects.create(
+                user=request.user, image_preview=preview_data_uri(image),
+                disease_name=prediction['disease'], confidence=prediction['confidence'],
+                severity=AnalysisResult.Severity.UNKNOWN, top_predictions=prediction['top_predictions'],
+                **guidance,
             )
+            type(request.user).objects.filter(pk=request.user.pk).update(total_analyzed=F('total_analyzed') + 1)
+        return Response(AnalysisResultSerializer(analysis).data, status=status.HTTP_201_CREATED)
 
-        user = request.user
 
-        # 1. Predict disease using the PyTorch model
-        prediction = model_service.predict(image_file)
-        if not prediction:
-            return Response(
-                {"error": "Failed to analyze the image."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+def history_queryset(request):
+    queryset = AnalysisResult.objects.filter(user=request.user)
+    query = request.query_params.get('q', '').strip()[:200]
+    if query:
+        queryset = queryset.filter(Q(disease_name__icontains=query.replace(' ', '_')) | Q(notes__icontains=query))
+    result_status = request.query_params.get('status')
+    if result_status == 'uncertain':
+        queryset = queryset.filter(confidence__lt=0.7)
+    elif result_status == 'healthy':
+        queryset = queryset.filter(confidence__gte=0.7, disease_name__iendswith='___healthy')
+    elif result_status == 'possible_disease':
+        queryset = queryset.filter(confidence__gte=0.7).exclude(disease_name__iendswith='___healthy')
+    return queryset
 
-        # 2. Get treatment info from Gemini
-        treatment_info = gemini_service.get_treatment_info(prediction['disease'], language=language)
 
-        # 3. Infer severity based on confidence
-        severity = infer_severity(prediction['confidence'])
-
-        # 4. Save the result to the database
-        analysis = AnalysisResult.objects.create(
-            user=user,
-            image=image_file,
-            disease_name=prediction['disease'],
-            confidence=prediction['confidence'],
-            severity=severity,
-            recommended_treatment=treatment_info.get('recommended_treatment', 'N/A'),
-            prevention_tips=treatment_info.get('prevention_tips', []),
-            expected_recovery_time=treatment_info.get('expected_recovery_time', 'Varies')
-        )
-
-        # 5. Update user analytics
-        user.total_uploads += 1
-        user.total_analyzed += 1
-        user.save(update_fields=['total_uploads', 'total_analyzed'])
-
-        # 6. Format the response to match the frontend ResultCard/Modal
-        response_data = {
-            "id": analysis.id,
-            "disease": analysis.disease_name.replace('___', ' ').replace('_', ' '),
-            "confidence": analysis.confidence,
-            "severity": analysis.severity,
-            "cure": analysis.recommended_treatment,
-            "recoveryTime": analysis.expected_recovery_time,
-            "preventiveMeasures": analysis.prevention_tips,
-            "preview": request.build_absolute_uri(analysis.image.url)
-        }
-
-        return Response(response_data, status=status.HTTP_200_OK)
+class HistoryPagination(PageNumberPagination):
+    page_size = 12
+    page_size_query_param = 'page_size'
+    max_page_size = 50
 
 
 class AnalysisHistoryView(ListAPIView):
-    """
-    Returns a paginated list of the user's past analysis results.
-    """
-    permission_classes = [IsAuthenticated]
     serializer_class = AnalysisResultSerializer
+    pagination_class = HistoryPagination
+
+    def get_queryset(self):
+        return history_queryset(self.request)
+
+
+class AnalysisDetailView(RetrieveUpdateDestroyAPIView):
+    serializer_class = AnalysisResultSerializer
+    http_method_names = ['get', 'patch', 'delete', 'head', 'options']
 
     def get_queryset(self):
         return AnalysisResult.objects.filter(user=self.request.user)
 
 
+class ExportHistoryView(APIView):
+    def get(self, request):
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="plantdoc-history.csv"'
+        response.write('\ufeff')
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'Possible match', 'Model confidence (%)', 'Status', 'Care guidance', 'Notes'])
+
+        def cell(value):
+            text = str(value)
+            return "'" + text if text.lstrip().startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else text
+
+        for item in history_queryset(request).defer('image_preview').iterator(chunk_size=100):
+            writer.writerow([cell(value) for value in [item.created_at.isoformat(), display_name(item.disease_name),
+                round(item.confidence * 100, 2), item.prediction_status, item.recommended_treatment, item.notes]])
+        return response
+
+
 class AnalyticsDashboardView(APIView):
-    """
-    Provides aggregated data for the user's analytics dashboard.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        user = request.user
-        queryset = AnalysisResult.objects.filter(user=user)
-
-        total_uploads = user.total_uploads
-        total_analyzed = queryset.count()
-
-        avg_confidence_data = queryset.aggregate(avg_conf=Avg('confidence'))
-        avg_confidence = avg_confidence_data['avg_conf'] or 0
-
-        disease_distribution = list(
-            queryset.values('disease_name')
-            .annotate(count=Count('disease_name'))
-            .order_by('-count')
-        )
-        
-        severity_distribution = list(
-            queryset.values('severity')
-            .annotate(count=Count('severity'))
-            .order_by('-count')
-        )
-
-        formatted_disease_dist = [
-            {"name": item['disease_name'].replace('___', ' ').replace('_', ' '), "value": item['count']}
-            for item in disease_distribution
-        ]
-        
-        formatted_severity_dist = [
-            {"name": item['severity'], "value": item['count']}
-            for item in severity_distribution
-        ]
-
-        dashboard_data = {
-            "summary": {
-                "totalUploads": total_uploads,
-                "analyzed": total_analyzed,
-                "successRate": 100 if total_uploads > 0 else 0, # Placeholder
-                "avgConfidence": round(avg_confidence * 100)
+    def get(self, request):
+        queryset = AnalysisResult.objects.filter(user=request.user)
+        analyzed = queryset.count()
+        healthy = queryset.filter(confidence__gte=0.7, disease_name__iendswith='___healthy').count()
+        uncertain = queryset.filter(confidence__lt=0.7).count()
+        return Response({
+            'summary': {
+                'totalUploads': request.user.total_uploads, 'analyzed': analyzed,
+                'successRate': round(min(100, request.user.total_analyzed / request.user.total_uploads * 100), 1)
+                    if request.user.total_uploads else 0,
+                'avgConfidence': round((queryset.aggregate(value=Avg('confidence'))['value'] or 0) * 100, 1),
             },
-            "diseaseDistribution": formatted_disease_dist,
-            "severityDistribution": formatted_severity_dist
-        }
+            'diseaseDistribution': [{'name': display_name(item['disease_name']), 'value': item['count']}
+                for item in queryset.values('disease_name').annotate(count=Count('id')).order_by('-count')],
+            'statusDistribution': [{'name': 'healthy', 'value': healthy}, {'name': 'uncertain', 'value': uncertain},
+                                  {'name': 'possible_disease', 'value': analyzed - healthy - uncertain}],
+        })
 
-        return Response(dashboard_data, status=status.HTTP_200_OK)
-    
+
+class SupportedPlantsView(APIView):
+    def get(self, request):
+        plants = {}
+        for label in class_names():
+            plant, condition = label.split('___', 1)
+            plants.setdefault(plant.replace('_', ' '), []).append(condition.replace('_', ' '))
+        return Response({'classCount': len(class_names()), 'plants': [
+            {'name': name, 'conditions': conditions} for name, conditions in sorted(plants.items())
+        ]})
+
+
 class ChatbotView(APIView):
-    permission_classes = [IsAuthenticated]
+    throttle_scope = 'chat'
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         serializer = ChatbotRequestSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        validated_data = serializer.validated_data
-        history = validated_data.get('history')
-        new_message = validated_data.get('newMessage')
-
-        try:
-            language = request.headers.get('Language')
-            ai_response = gemini_service.process_chat(history, new_message, language=language)
-            return Response({"response": ai_response}, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            return Response(
-                {"error": "An unexpected error occurred. We are unable to process your request at this time."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if sum(len(item['parts'][0]['text']) for item in data['history']) > 20000:
+            return Response({'error': 'Conversation is too long. Start a new chat.'}, status=400)
+        analysis = get_object_or_404(AnalysisResult, pk=data['analysisId'], user=request.user) if data.get('analysisId') else None
+        return Response(gemini_service.process_chat(data['history'], data['newMessage'],
+            language=request.headers.get('Language'), analysis=analysis))

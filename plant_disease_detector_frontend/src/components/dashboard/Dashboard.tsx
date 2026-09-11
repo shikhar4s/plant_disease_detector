@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Sidebar from './Sidebar';
 import MainContent from './MainContent';
 import Chatbot from './Chatbot';
@@ -8,7 +8,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
-      <div className="flex">
+      <div className="flex flex-col md:flex-row">
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
         <MainContent activeTab={activeTab} />
       </div>

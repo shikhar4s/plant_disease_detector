@@ -4,6 +4,7 @@ import HistorySection from './HistorySection';
 import AnalyticsSection from './AnalyticsSection';
 import ProfileSection from './ProfileSection';
 import ContactSection from './ContactSection';
+import SupportedPlants from './SupportedPlants';
 
 interface MainContentProps {
   activeTab: string;
@@ -20,6 +21,8 @@ const MainContent: React.FC<MainContentProps> = ({ activeTab }) => {
         return <AnalyticsSection />;
       case 'profile':
         return <ProfileSection />;
+      case 'plants':
+        return <SupportedPlants />;
       case 'contact':
         return <ContactSection />;
       default:
@@ -28,7 +31,7 @@ const MainContent: React.FC<MainContentProps> = ({ activeTab }) => {
   };
 
   return (
-    <div className="flex-1 p-8">
+    <div className="flex-1 min-w-0 p-4 md:p-8">
       {renderContent()}
     </div>
   );
