@@ -61,8 +61,8 @@ const AnalyticsSection = () => {
     };
 
     fetchAnalytics();
-  }, [t]); 
-  
+  }, [t]);
+
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto">
@@ -100,7 +100,7 @@ const AnalyticsSection = () => {
       </div>
     );
   }
-  
+
   const { summary, diseaseDistribution, statusDistribution } = analyticsData;
 
   return (
@@ -173,8 +173,8 @@ const AnalyticsSection = () => {
                   <span className="text-sm text-gray-600 truncate pr-4">{item.name}</span>
                   <div className="flex items-center space-x-2 flex-shrink-0">
                     <div className="w-32 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-green-500 h-2 rounded-full" 
+                      <div
+                        className="bg-green-500 h-2 rounded-full"
                         style={{ width: `${(item.value / Math.max(1, summary.analyzed)) * 100}%` }}
                       ></div>
                     </div>
@@ -190,14 +190,14 @@ const AnalyticsSection = () => {
             <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('features.statusDistribution')}</h3>
             <div className="space-y-3">
               {statusDistribution.map((item) => {
-                const color = item.name === 'healthy' ? 'bg-green-500' : 
+                const color = item.name === 'healthy' ? 'bg-green-500' :
                               item.name === 'uncertain' ? 'bg-yellow-500' : 'bg-red-500';
                 return (
                   <div key={item.name} className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">{t('features.' + item.name)}</span>
                     <div className="flex items-center space-x-2 flex-shrink-0">
                       <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div 
+                        <div
                           className={`${color} h-2 rounded-full`}
                           style={{ width: `${(item.value / Math.max(1, summary.analyzed)) * 100}%` }}
                         ></div>

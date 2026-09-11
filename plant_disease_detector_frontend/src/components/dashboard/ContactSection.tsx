@@ -38,7 +38,7 @@ const ContactSection = () => {
         <div className="lg:col-span-2">
           <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-white/20">
             <h2 className="text-xl font-semibold text-gray-800 mb-6">{t('features.developer')}</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {teamMembers.map((member, index) => (
                 <div key={member.name} className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-6 border border-gray-200 hover:shadow-lg transition-all duration-200">
@@ -51,14 +51,14 @@ const ContactSection = () => {
                       <p className="text-sm text-gray-600">{member.role}</p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center space-x-3 text-gray-700">
                       <PhoneIcon className="w-4 h-4 text-green-600" />
                       <span className="text-sm">{t('dashboard.contact.contact')}: {member.contact}</span>
                     </div>
                   </div>
-                  
+
                   <div className="mt-4 flex space-x-2">
                     <a
                       href={`tel:+91${member.contact}`}
@@ -86,7 +86,7 @@ const ContactSection = () => {
           <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-white/20">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('dashboard.contact.getInTouch')}</h3>
             <p className="text-gray-600 mb-6">{t('dashboard.contact.getInTouchSubtext')}</p>
-            
+
             <div className="space-y-4">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
@@ -97,7 +97,7 @@ const ContactSection = () => {
                   <p className="text-sm font-medium text-gray-800">shikharshrivastava1980@gmail.com</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                   <PhoneIcon className="w-5 h-5 text-blue-600" />
@@ -113,7 +113,7 @@ const ContactSection = () => {
           <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-6 border border-green-200">
             <h3 className="text-lg font-semibold text-green-800 mb-3">About PlantDoc</h3>
             <p className="text-green-700 text-sm leading-relaxed">
-              PlantDoc is an AI-powered plant disease detection system maintained by Shikhar Shrivastava. 
+              PlantDoc is an AI-powered plant disease detection system maintained by Shikhar Shrivastava.
               The aim is to help farmers and gardeners identify plant diseases early and provide effective treatment solutions.
             </p>
           </div>
