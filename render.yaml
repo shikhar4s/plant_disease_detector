@@ -1,5 +1,5 @@
 # Uses the existing free preview database in Shikhar's workspace.
-# This database expires on 2026-10-11; connect Neon or upgrade before then.
+# This database expires on 2026-10-11; connect a lasting PostgreSQL provider or upgrade before then.
 services:
   - type: web
     name: shikhar-plantdoc
@@ -25,7 +25,15 @@ services:
           name: plantdoc-preview-db
           property: connectionString
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.5-flash
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATA_GOV_IN_API_KEY
+        sync: false
+      - key: DATA_GOV_IN_RESOURCE_ID
+        value: 9ef84268-d588-465a-a308-a864a43d0070
+      - key: MANDI_FETCH_LIMIT
+        value: "1000"
       - key: OMP_NUM_THREADS
         value: "1"
       - key: MALLOC_ARENA_MAX

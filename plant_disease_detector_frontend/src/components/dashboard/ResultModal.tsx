@@ -49,10 +49,22 @@ export default function ResultModal({ image, isOpen, onClose, onUpdate }: Props)
     <div className="p-6 space-y-5">
       {image.image_url && <img src={image.image_url} alt="Analyzed leaf" className="max-h-56 mx-auto rounded-xl" />}
       <p className="text-center text-green-700 font-semibold">{t('features.' + image.prediction_status)}</p>
-      <h3 className="text-2xl font-bold text-center text-gray-800">{image.disease}</h3>
+      {image.prediction_status === 'uncertain' ? <h3 className="text-xl font-bold text-center text-amber-800">{t('features.uncertainMessage')}</h3> : <>
+        <p className="text-center text-gray-600">{t('features.crop')}: <strong>{image.crop_name}</strong></p>
+        <h3 className="text-2xl font-bold text-center text-gray-800">{t('features.disease')}: {image.condition_name}</h3></>}
       <p className="text-center">{t('features.modelConfidence')}: <strong>{(image.confidence * 100).toFixed(1)}%</strong></p>
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
-        A photo cannot establish disease severity or recovery time. A high score can still be wrong, especially for unsupported plants or unrelated images.
+        {t('features.confidenceWarning')}
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <section className="bg-white border rounded-xl p-4"><h4 className="font-bold mb-2">{t('features.symptoms')}</h4>
+          <ul className="list-disc pl-5 space-y-1 text-sm">{image.information.symptoms.map(item => <li key={item}>{item}</li>)}</ul></section>
+        <section className="bg-white border rounded-xl p-4"><h4 className="font-bold mb-2">{t('features.possibleCauses')}</h4>
+          <ul className="list-disc pl-5 space-y-1 text-sm">{image.information.causes.map(item => <li key={item}>{item}</li>)}</ul></section>
+        <section className="bg-white border rounded-xl p-4"><h4 className="font-bold mb-2">{t('features.recommendedActions')}</h4>
+          <ul className="list-disc pl-5 space-y-1 text-sm">{image.information.actions.map(item => <li key={item}>{item}</li>)}</ul></section>
+        <section className="bg-white border rounded-xl p-4"><h4 className="font-bold mb-2">{t('result.prevention')}</h4>
+          <ul className="list-disc pl-5 space-y-1 text-sm">{image.information.prevention.map(item => <li key={item}>{item}</li>)}</ul></section>
       </div>
       {image.top_predictions.length > 0 && <section>
         <h4 className="font-semibold mb-3">{t('features.topMatches')}</h4>
@@ -68,12 +80,13 @@ export default function ResultModal({ image, isOpen, onClose, onUpdate }: Props)
       <section>
         <label htmlFor="analysis-notes" className="block font-semibold mb-2">{t('features.notes')}</label>
         <textarea id="analysis-notes" value={notes} onChange={event => setNotes(event.target.value)} maxLength={2000}
-          rows={3} placeholder="Record symptoms, plant location or follow-up changes."
+          rows={3} placeholder={t('features.notesPlaceholder')}
           className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-green-500" />
         <button onClick={() => void saveNotes()} disabled={isSaving || notes === image.notes}
           className="mt-2 bg-green-600 text-white rounded-lg px-4 py-2 disabled:opacity-50">{t('features.saveNotes')}</button>
       </section>
       <button onClick={downloadReport} className="border border-green-600 text-green-700 rounded-lg px-5 py-2">{t('features.downloadReport')}</button>
+      <p className="text-xs text-gray-600">{image.information.disclaimer} Model: {image.model_version}</p>
     </div>
   </dialog>;
 }

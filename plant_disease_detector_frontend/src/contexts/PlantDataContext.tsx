@@ -5,6 +5,10 @@ import type { Analysis } from '../lib/types';
 interface PlantDataContextType {
   selectedImage: Analysis | null;
   setSelectedImage: (image: Analysis | null) => void;
+  weatherContextId: string;
+  setWeatherContextId: (value: string) => void;
+  mandiContextId: string;
+  setMandiContextId: (value: string) => void;
 }
 const PlantDataContext = createContext<PlantDataContextType | undefined>(undefined);
 
@@ -17,6 +21,9 @@ export function usePlantData() {
 export function PlantDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [selectedImage, setSelectedImage] = useState<Analysis | null>(null);
-  useEffect(() => { setSelectedImage(null); }, [user?.id]);
-  return <PlantDataContext.Provider value={{ selectedImage, setSelectedImage }}>{children}</PlantDataContext.Provider>;
+  const [weatherContextId, setWeatherContextId] = useState('');
+  const [mandiContextId, setMandiContextId] = useState('');
+  useEffect(() => { setSelectedImage(null); setWeatherContextId(''); setMandiContextId(''); }, [user?.id]);
+  return <PlantDataContext.Provider value={{ selectedImage, setSelectedImage, weatherContextId,
+    setWeatherContextId, mandiContextId, setMandiContextId }}>{children}</PlantDataContext.Provider>;
 }

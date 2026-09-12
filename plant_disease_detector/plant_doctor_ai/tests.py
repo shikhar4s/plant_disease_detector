@@ -1,29 +1,36 @@
 import csv
 import io
 import os
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 from django.core.files.uploadedfile import SimpleUploadedFile
-from PIL import Image
+from PIL import Image, ImageDraw
 from rest_framework.test import APIClient
 
 from users.models import User
-from .models import AnalysisResult
+from .models import AnalysisResult, MandiSnapshot
 from .services.care_guide import care_info
 from .services.model_service import model_service, class_names
+from .services.context_store import store_context
 
 API = '/api/plant_doctor_ai/'
 PREDICTION = {
     'disease': 'Tomato___Early_blight', 'confidence': 0.96,
+    'status': 'possible_disease', 'model_version': 'legacy-cnn-pv38-v1',
     'top_predictions': [{'label': 'Tomato___Early_blight', 'disease': 'Tomato · Early blight', 'confidence': 0.96}],
 }
 
 
 def image_upload(size=(256, 256), image_format='JPEG'):
     stream = io.BytesIO()
-    Image.new('RGB', size, (50, 130, 55)).save(stream, format=image_format)
+    image = Image.new('RGB', size, (50, 130, 55))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((size[0] // 4, size[1] // 4, size[0] * 3 // 4, size[1] * 3 // 4), fill=(180, 210, 90))
+    image.save(stream, format=image_format)
     return SimpleUploadedFile('leaf.jpg', stream.getvalue(), content_type='image/jpeg')
 
 
@@ -54,6 +61,15 @@ class PlantApiTests(TestCase):
         for file in [image_upload((32, 32)), image_upload(image_format='GIF'),
                      SimpleUploadedFile('large.jpg', b'x' * (10 * 1024 * 1024 + 1), content_type='image/jpeg')]:
             self.assertEqual(self.client.post(API + 'analyze/', {'image': file}, format='multipart').status_code, 400)
+
+    def test_rejects_flat_non_diagnostic_image_before_inference(self):
+        stream = io.BytesIO()
+        Image.new('RGB', (256, 256), (50, 130, 55)).save(stream, format='JPEG')
+        upload = SimpleUploadedFile('flat.jpg', stream.getvalue(), content_type='image/jpeg')
+        with patch('plant_doctor_ai.views.model_service.predict') as predict:
+            response = self.client.post(API + 'analyze/', {'image': upload}, format='multipart')
+        self.assertEqual(response.status_code, 400)
+        predict.assert_not_called()
 
     @patch('plant_doctor_ai.views.model_service.predict', return_value=PREDICTION)
     def test_upload_preserves_full_result_without_gemini_key(self, predict):
@@ -131,6 +147,12 @@ class PlantApiTests(TestCase):
         self.assertIn('statusDistribution', dashboard)
         self.assertNotIn('severityDistribution', dashboard)
 
+    def test_hindi_result_information_and_disclaimer(self):
+        self.record()
+        result = self.client.get(API + 'history/', HTTP_LANGUAGE='hi').data['results'][0]
+        self.assertIn('भूरे', result['information']['symptoms'][0])
+        self.assertIn('पक्का निदान नहीं', result['information']['disclaimer'])
+
     def test_supported_plants_match_the_model_artifact(self):
         response = self.client.get(API + 'plants/')
         self.assertEqual(response.data['classCount'], len(class_names()))
@@ -151,6 +173,87 @@ class PlantApiTests(TestCase):
         for data in [{'newMessage': ''}, {'newMessage': 'a', 'history': [{'role': 'system', 'parts': [{'text': 'x'}]}]},
                      {'newMessage': 'a', 'history': [{'role': 'user', 'parts': [{'text': 'x'}]}] * 21}]:
             self.assertEqual(self.client.post(API + 'chat/', data, format='json').status_code, 400)
+
+    def test_live_data_chat_never_invents_values_without_server_context(self):
+        response = self.client.post(API + 'chat/', {'newMessage': 'What is the tomato mandi price today?'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['mode'], 'live-data-required')
+        self.assertIn('will not invent', response.data['response'])
+        weather_context = store_context(self.user.id, 'weather', {'current': {'temperature_2m': 25}}, 60)
+        response = self.client.post(API + 'chat/', {'newMessage': 'What is the tomato mandi price today?',
+            'weatherContextId': weather_context}, format='json')
+        self.assertEqual(response.data['mode'], 'live-data-required')
+
+    def test_weather_risk_requires_owned_cached_context(self):
+        other_context = store_context(self.other.id, 'weather', {'current': {'temperature_2m': 25, 'relative_humidity_2m': 90}}, 60)
+        self.assertEqual(self.client.post(API + 'risk/', {'weatherContextId': other_context}, format='json').status_code, 400)
+        mine = store_context(self.user.id, 'weather', {'current': {'temperature_2m': 25, 'relative_humidity_2m': 90},
+            'forecast': [{'precipitation_probability_max': 80, 'precipitation_sum': 6}]}, 60)
+        response = self.client.post(API + 'risk/', {'weatherContextId': mine, 'crop': 'Tomato'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['level'], 'High')
+        self.assertIn('does not diagnose', response.data['method'])
+        response = self.client.post(API + 'risk/', {'weatherContextId': mine, 'crop': 'Tomato'},
+            format='json', HTTP_LANGUAGE='hi')
+        self.assertEqual(response.data['level'], 'High')
+        self.assertEqual(response.data['level_label'], 'उच्च')
+        self.assertIn('निदान', response.data['method'])
+
+    def test_watchlist_is_database_backed_and_owner_scoped(self):
+        response = self.client.post(API + 'watchlist/', {'commodity': 'Tomato', 'state': 'Madhya Pradesh'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(len(self.client.get(API + 'watchlist/').data), 1)
+        other_client = APIClient(); other_client.force_authenticate(self.other)
+        self.assertEqual(other_client.get(API + 'watchlist/').data, [])
+        self.assertEqual(other_client.delete(API + f"watchlist/{response.data['id']}/").status_code, 404)
+
+    @patch('plant_doctor_ai.services.mandi_service._fetch')
+    def test_mandi_search_sort_pagination_and_comparison(self, fetch):
+        rows = [
+            {'state': 'MP', 'district': 'Indore', 'market': 'A', 'commodity': 'Tomato', 'variety': 'Local', 'min_price': 100,
+             'max_price': 300, 'modal_price': 250, 'unit': 'INR/quintal', 'price_date': '2026-09-12'},
+            {'state': 'MP', 'district': 'Indore', 'market': 'B', 'commodity': 'Tomato', 'variety': 'Local', 'min_price': 90,
+             'max_price': 260, 'modal_price': 230, 'unit': 'INR/quintal', 'price_date': '2026-09-12'},
+        ]
+        fetch.return_value = ({'records': rows, 'provider_total': 2, 'provider_limit': 1000,
+                               'fetched_at': '2026-09-12T00:00:00Z'}, False)
+        response = self.client.get(API + 'mandi/?commodity=Tomato&sort=highest&page_size=5')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['results'][0]['modal_price'], 250)
+        self.assertEqual(response.data['comparison']['highest']['market'], 'A')
+        self.assertTrue(response.data['coverage']['complete'])
+
+    @patch('plant_doctor_ai.services.mandi_service._fetch')
+    def test_mandi_query_numbers_are_validated(self, fetch):
+        fetch.return_value = ({'records': [], 'provider_total': 0, 'provider_limit': 1000,
+                               'fetched_at': '2026-09-12T00:00:00Z'}, False)
+        response = self.client.get(API + 'mandi/?page=not-a-number')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('whole numbers', response.data['error'])
+        response = self.client.get(API + 'mandi/history/?commodity=Tomato&variety=Local&market=A&days=bad')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('whole number', response.data['error'])
+
+    def test_mandi_history_uses_only_exact_comparable_scope(self):
+        common = {'state': 'MP', 'district': 'Indore', 'market': 'A', 'commodity': 'Tomato',
+                  'variety': 'Local', 'unit': 'INR/quintal'}
+        today = timezone.localdate()
+        MandiSnapshot.objects.create(**common, price_date=today - timedelta(days=1), modal_price=100)
+        MandiSnapshot.objects.create(**common, price_date=today, modal_price=120)
+        MandiSnapshot.objects.create(**{**common, 'district': 'Other'}, price_date=today, modal_price=999)
+        query = 'commodity=Tomato&variety=Local&market=A&district=Indore&state=MP&days=30'
+        response = self.client.get(API + 'mandi/history/?' + query)
+        self.assertEqual(response.data['status'], 'available')
+        self.assertEqual([point['modal_price'] for point in response.data['points']], [100.0, 120.0])
+        self.assertEqual(response.data['percentage_change'], 20.0)
+
+    @patch('plant_doctor_ai.views.weather')
+    def test_weather_endpoint_returns_real_provider_shape(self, weather_mock):
+        weather_mock.return_value = {'location': {'name': 'Indore'}, 'current': {'temperature_2m': 26},
+                                     'forecast': [], 'source': {'name': 'Open-Meteo'}, 'context_id': 'owned'}
+        response = self.client.get(API + 'weather/?city=Indore')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['source']['name'], 'Open-Meteo')
 
     def test_real_model_returns_finite_ranked_probabilities(self):
         result = model_service.predict(Image.new('RGB', (256, 256), (50, 130, 55)))
@@ -175,3 +278,16 @@ class GeminiIntegrationTests(TestCase):
             with patch.dict(os.environ, {'GEMINI_API_KEY': 'test-only'}), patch.object(gemini_service, '_generate', return_value=text):
                 guidance = gemini_service.get_treatment_info('Tomato___Early_blight')
             self.assertEqual(guidance['guidance_source'], 'care-guide')
+
+
+class HealthCheckTests(TestCase):
+    def test_health_reports_safe_integration_configuration_without_secrets(self):
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'never-return-this', 'GEMINI_MODEL': 'gemini-3.5-flash',
+                                     'DATA_GOV_IN_API_KEY': ''}, clear=False):
+            response = self.client.get('/healthz')
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertTrue(body['integrations']['gemini']['configured'])
+        self.assertEqual(body['integrations']['gemini']['model'], 'gemini-3.5-flash')
+        self.assertFalse(body['integrations']['mandi']['configured'])
+        self.assertNotIn('never-return-this', str(body))

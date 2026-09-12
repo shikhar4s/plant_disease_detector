@@ -1,5 +1,6 @@
 """Shared development and production settings."""
 import os
+import secrets
 from datetime import timedelta
 from pathlib import Path
 
@@ -15,7 +16,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 if not SECRET_KEY:
     if not DEBUG:
         raise ImproperlyConfigured('Set DJANGO_SECRET_KEY in production.')
-    SECRET_KEY = 'local-development-only-never-use-this-key-in-production'
+    SECRET_KEY = secrets.token_urlsafe(50)
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,[::1]').split(',') if h.strip()]
 if os.getenv('RENDER_EXTERNAL_HOSTNAME'):
     ALLOWED_HOSTS.append(os.environ['RENDER_EXTERNAL_HOSTNAME'])
@@ -72,7 +73,8 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.ScopedRateThrottle'],
-    'DEFAULT_THROTTLE_RATES': {'auth': '30/hour', 'analyze': '60/hour', 'chat': '120/hour'},
+    'DEFAULT_THROTTLE_RATES': {'auth': '30/hour', 'analyze': '60/hour', 'chat': '90/hour',
+                               'market': '120/hour', 'weather': '120/hour'},
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
 }
 SIMPLE_JWT = {'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30), 'REFRESH_TOKEN_LIFETIME': timedelta(days=7)}

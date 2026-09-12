@@ -57,6 +57,7 @@ export async function apiResponse(path: string, options: RequestOptions = {}): P
   const version = sessionVersion;
   const send = () => {
     const headers = new Headers(init.headers);
+    if (!headers.has('Language')) headers.set('Language', localStorage.getItem('i18nextLng') || 'en');
     const token = localStorage.getItem('access_token');
     if (auth && token) headers.set('Authorization', 'Bearer ' + token);
     if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');

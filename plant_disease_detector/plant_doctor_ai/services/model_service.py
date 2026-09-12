@@ -12,6 +12,12 @@ def class_names():
         return json.load(handle)
 
 
+@lru_cache(maxsize=1)
+def model_manifest():
+    with open(settings.BASE_DIR / 'deployment_artifacts' / 'model_manifest.json', encoding='utf-8') as handle:
+        return json.load(handle)
+
+
 def display_name(label):
     return label.replace('___', ' · ').replace('_', ' ')
 
@@ -44,7 +50,11 @@ class ModelService:
                             'confidence': round(score, 6)}
                            for score, index in zip(scores[0].tolist(), indices[0].tolist())]
             best = predictions[0]
-            return {'disease': best['label'], 'confidence': best['confidence'], 'top_predictions': predictions}
+            threshold = float(model_manifest()['uncertainty_threshold'])
+            status = ('uncertain' if best['confidence'] < threshold else
+                      'healthy' if best['label'].lower().endswith('___healthy') else 'possible_disease')
+            return {'disease': best['label'], 'confidence': best['confidence'], 'status': status,
+                    'model_version': model_manifest()['model_version'], 'top_predictions': predictions}
 
 
 model_service = ModelService()

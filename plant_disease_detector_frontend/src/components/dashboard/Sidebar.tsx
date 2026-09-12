@@ -2,12 +2,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
-  CloudArrowUpIcon, 
+  CloudArrowUpIcon,
   DocumentTextIcon, 
-  ChartBarIcon,
   UserIcon,
   ArrowRightOnRectangleIcon,
-  PhoneIcon
+  HomeIcon, CloudIcon, CurrencyRupeeIcon, ChatBubbleLeftRightIcon, InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { Leaf } from 'lucide-react';
 import LanguageSelector from '../common/LanguageSelector';
@@ -22,12 +21,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const { t } = useTranslation();
 
   const menuItems = [
-    { id: 'upload', label: t('dashboard.sidebar.upload'), icon: CloudArrowUpIcon },
-    { id: 'plants', label: t('features.supportedPlants'), icon: Leaf },
-    { id: 'history', label: t('dashboard.sidebar.history'), icon: DocumentTextIcon },
-    { id: 'analytics', label: t('dashboard.sidebar.analytics'), icon: ChartBarIcon },
+    { id: 'home', label: t('features.dashboard'), icon: HomeIcon },
+    { id: 'diagnose', label: t('features.diagnose'), icon: CloudArrowUpIcon },
+    { id: 'mandi', label: t('features.mandiRates'), icon: CurrencyRupeeIcon },
+    { id: 'weather', label: t('features.weather'), icon: CloudIcon },
+    { id: 'history', label: t('features.myDiagnoses'), icon: DocumentTextIcon },
+    { id: 'assistant', label: t('features.aiAssistant'), icon: ChatBubbleLeftRightIcon },
+    { id: 'about', label: t('features.about'), icon: InformationCircleIcon },
     { id: 'profile', label: t('dashboard.sidebar.profile'), icon: UserIcon },
-    { id: 'contact', label: t('dashboard.sidebar.contact'), icon: PhoneIcon },
   ];
 
   return (
@@ -40,7 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-800">{t('app.title')}</h1>
-            <p className="text-sm text-gray-600">AI Detection</p>
+            <p className="text-sm text-gray-600">Crop intelligence</p>
           </div>
         </div>
       </div>

@@ -31,8 +31,26 @@ def read_image(upload, max_bytes=10 * 1024 * 1024):
 
 
 def preview_data_uri(image, size=640):
+    return 'data:image/jpeg;base64,' + base64.b64encode(preview_bytes(image, size)).decode('ascii')
+
+
+def preview_bytes(image, size=640):
     thumbnail = image.copy()
     thumbnail.thumbnail((size, size))
     output = BytesIO()
     thumbnail.save(output, format='JPEG', quality=78, optimize=True)
-    return 'data:image/jpeg;base64,' + base64.b64encode(output.getvalue()).decode('ascii')
+    return output.getvalue()
+
+
+def validate_photo_quality(image):
+    """Reject only clearly unusable images; this is not a leaf detector."""
+    import numpy as np
+
+    pixels = np.asarray(image.resize((128, 128), Image.Resampling.BILINEAR), dtype=np.float32)
+    luminance = pixels.mean(axis=2)
+    spread = float(np.percentile(luminance, 95) - np.percentile(luminance, 5))
+    mean = float(luminance.mean())
+    if mean < 12 or mean > 245:
+        raise ValidationError({'image': 'The photo is too dark or too bright. Upload a clear leaf image in daylight.'})
+    if spread < 18 or float(luminance.std()) < 7:
+        raise ValidationError({'image': 'The photo has too little visible detail. Upload a sharp, clear leaf image.'})

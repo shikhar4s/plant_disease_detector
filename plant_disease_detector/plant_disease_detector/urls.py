@@ -1,3 +1,5 @@
+import os
+
 from django.contrib import admin
 from django.db import connection
 from django.http import FileResponse, JsonResponse
@@ -14,7 +16,17 @@ def health(request):
             return JsonResponse({'status': 'unavailable'}, status=503)
     except Exception:
         return JsonResponse({'status': 'unavailable'}, status=503)
-    return JsonResponse({'status': 'ok'})
+    return JsonResponse({
+        'status': 'ok',
+        'integrations': {
+            'gemini': {
+                'configured': bool(os.getenv('GEMINI_API_KEY', '').strip()),
+                'model': os.getenv('GEMINI_MODEL', 'gemini-3.5-flash').removeprefix('models/'),
+            },
+            'mandi': {'configured': bool(os.getenv('DATA_GOV_IN_API_KEY', '').strip())},
+            'weather': {'configured': True},
+        },
+    })
 
 
 @never_cache

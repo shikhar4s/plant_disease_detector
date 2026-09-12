@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "model_version": "legacy-cnn-pv38-v1",
+  "architecture": "Custom residual CNN",
+  "class_mapping": "class_names.json",
+  "class_count": 38,
+  "input": {
+    "width": 256,
+    "height": 256,
+    "color": "RGB",
+    "resize": "bilinear",
+    "normalization": "divide by 255 to [0, 1]"
+  },
+  "uncertainty_threshold": 0.7,
+  "threshold_status": "legacy display heuristic; not calibrated on a retained validation set",
+  "weights_sha256": "18451c4ba8262edbda24ef91954945d9b3da92db40f5b0a3cad9ef92b7439a86",
+  "weights_size_bytes": 26396688,
+  "parameter_count": 6594222,
+  "runtime_benchmark": {
+    "environment": "Local Windows CPU, Python 3.12, torch 2.7.1+cpu, one thread",
+    "sample_count": 50,
+    "warmup_count": 1,
+    "median_latency_ms": 1080.33,
+    "p95_latency_ms": 1225.71,
+    "observed_process_rss_delta_bytes": 57896960,
+    "note": "This is a local process observation, not a Render peak-memory measurement."
+  },
+  "training_dataset": "Not documented in repository; labels match the 38-class PlantVillage convention",
+  "validation_metrics": null,
+  "test_metrics": null,
+  "field_image_metrics": null,
+  "limitations": [
+    "No retained train/validation/test split or duplicate-group manifest is available.",
+    "The classifier is single-label and cannot report simultaneous diseases.",
+    "Softmax confidence cannot establish that an image is a supported leaf.",
+    "No calibrated out-of-distribution detector is available."
+  ]
+}
