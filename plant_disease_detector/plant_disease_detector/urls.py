@@ -21,7 +21,7 @@ def health(request):
         'integrations': {
             'gemini': {
                 'configured': bool(os.getenv('GEMINI_API_KEY', '').strip()),
-                'model': os.getenv('GEMINI_MODEL', 'gemini-3.5-flash').removeprefix('models/'),
+                'model': os.getenv('GEMINI_MODEL', 'gemini-3.6-flash').removeprefix('models/'),
             },
             'mandi': {'configured': bool(os.getenv('DATA_GOV_IN_API_KEY', '').strip())},
             'weather': {'configured': True},
@@ -44,3 +44,4 @@ urlpatterns = [
     path('api/plant_doctor_ai/', include('plant_doctor_ai.urls')),
     re_path(r'^(?!api/|admin/|media/|static/|assets/).*$', frontend),
 ]
+

@@ -337,13 +337,13 @@ class GeminiIntegrationTests(TestCase):
 
 class HealthCheckTests(TestCase):
     def test_health_reports_safe_integration_configuration_without_secrets(self):
-        with patch.dict(os.environ, {'GEMINI_API_KEY': 'never-return-this', 'GEMINI_MODEL': 'gemini-3.5-flash',
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'never-return-this', 'GEMINI_MODEL': 'gemini-3.6-flash',
                                      'DATA_GOV_IN_API_KEY': ''}, clear=False):
             response = self.client.get('/healthz')
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertTrue(body['integrations']['gemini']['configured'])
-        self.assertEqual(body['integrations']['gemini']['model'], 'gemini-3.5-flash')
+        self.assertEqual(body['integrations']['gemini']['model'], 'gemini-3.6-flash')
         self.assertFalse(body['integrations']['mandi']['configured'])
         self.assertNotIn('never-return-this', str(body))
 

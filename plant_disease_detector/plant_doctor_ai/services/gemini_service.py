@@ -23,7 +23,10 @@ class GeminiService:
         key = os.getenv('GEMINI_API_KEY', '').strip()
         if not key:
             raise RuntimeError('AI is not configured')
-        model = os.getenv('GEMINI_MODEL', 'gemini-3.5-flash').removeprefix('models/')
+        # Gemini 3.6 Flash is the current stable low-latency text/multimodal
+        # model. Keep the setting overridable because model availability is
+        # project/region specific; never log the key or provider response.
+        model = os.getenv('GEMINI_MODEL', 'gemini-3.6-flash').removeprefix('models/')
         if not re.fullmatch(r'[a-zA-Z0-9._-]+', model):
             raise RuntimeError('Invalid model configuration')
         request = {
@@ -106,3 +109,4 @@ class GeminiService:
 
 
 gemini_service = GeminiService()
+

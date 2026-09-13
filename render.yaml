@@ -25,7 +25,7 @@ services:
           name: plantdoc-preview-db
           property: connectionString
       - key: GEMINI_MODEL
-        value: gemini-3.5-flash
+        value: gemini-3.6-flash
       - key: GEMINI_API_KEY
         sync: false
       - key: DATA_GOV_IN_API_KEY
@@ -38,3 +38,4 @@ services:
         value: "1"
       - key: MALLOC_ARENA_MAX
         value: "2"
+

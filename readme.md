@@ -76,7 +76,7 @@ The risk rules use humidity, forecast rain/precipitation and temperature as broa
 
 ### Gemini
 
-Gemini is optional. `GEMINI_MODEL` defaults to `gemini-3.5-flash`; `render.yaml` uses the same value so a Blueprint sync cannot restore the prior identifier. Calls use bounded content, timeouts, one bounded retry for transient capacity errors and conservative prompts. Credentials stay in Render and are never logged or committed.
+Gemini is optional. `GEMINI_MODEL` defaults to the current stable `gemini-3.6-flash`; `render.yaml` uses the same value so a Blueprint sync cannot restore the prior identifier. Calls use bounded content, timeouts, one bounded retry for transient capacity errors and conservative prompts. Credentials stay in Render and are never logged or committed.
 
 ## Local setup
 
@@ -112,7 +112,7 @@ Copy the backend `.env.example` to `.env`. `.env` files are ignored; the example
 | `ALLOWED_HOSTS` | optional | Extra comma-separated hosts |
 | `CORS_ALLOWED_ORIGINS` | separate frontend only | Allowed frontend origins |
 | `GEMINI_API_KEY` | optional | Gemini assistant/guidance |
-| `GEMINI_MODEL` | optional | Defaults to `gemini-3.5-flash` |
+| `GEMINI_MODEL` | optional | Defaults to `gemini-3.6-flash` |
 | `DATA_GOV_IN_API_KEY` | mandi required | data.gov.in API key |
 | `DATA_GOV_IN_RESOURCE_ID` | optional | Current mandi resource ID |
 | `MANDI_FETCH_LIMIT` | optional | Upstream window, default 1000, max 2000 |
