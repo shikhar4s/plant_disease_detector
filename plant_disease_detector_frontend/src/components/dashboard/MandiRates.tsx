@@ -4,8 +4,41 @@ import { toast } from 'react-hot-toast';
 import { api, messageOf } from '../../lib/api';
 import type { MandiHistory, MandiRecord, MandiResponse } from '../../lib/types';
 import { usePlantData } from '../../contexts/PlantDataContext';
+import vegetableAtlas from '../../assets/vegetable-atlas.webp';
 
 const empty = { q: '', state: '', district: '', market: '', commodity: '', variety: '', date: '', sort: 'newest' };
+
+const vegetableTiles = [
+  { aliases: ['tomato'], column: 0, row: 0 },
+  { aliases: ['onion'], column: 1, row: 0 },
+  { aliases: ['potato'], column: 2, row: 0 },
+  { aliases: ['brinjal', 'eggplant'], column: 3, row: 0 },
+  { aliases: ['cabbage'], column: 0, row: 1 },
+  { aliases: ['cauliflower'], column: 1, row: 1 },
+  { aliases: ['carrot'], column: 2, row: 1 },
+  { aliases: ['okra', 'bhindi', 'ladies finger'], column: 3, row: 1 },
+  { aliases: ['capsicum', 'bell pepper'], column: 0, row: 2 },
+  { aliases: ['cucumber', 'cucumbar', 'kheera'], column: 1, row: 2 },
+  { aliases: ['peas', 'pea wet'], column: 2, row: 2 },
+  { aliases: ['garlic'], column: 3, row: 2 },
+  { aliases: ['ginger'], column: 0, row: 3 },
+  { aliases: ['pumpkin'], column: 1, row: 3 },
+  { aliases: ['spinach', 'palak'], column: 2, row: 3 },
+  { aliases: ['green chilli', 'green chili', 'chillies'], column: 3, row: 3 },
+];
+
+function CommodityImage({ commodity, compact = false }: { commodity: string; compact?: boolean }) {
+  const name = commodity.toLocaleLowerCase('en-IN');
+  const tile = vegetableTiles.find(item => item.aliases.some(alias => name.includes(alias)));
+  const className = compact ? 'commodity-image commodity-image-compact' : 'commodity-image';
+  if (!tile) return <div className={`${className} commodity-image-fallback`} role="img" aria-label={commodity}>
+    {commodity.trim().charAt(0).toLocaleUpperCase('en-IN') || '•'}
+  </div>;
+  return <div className={className} role="img" aria-label={`${commodity} illustration`} style={{
+    backgroundImage: `url(${vegetableAtlas})`,
+    backgroundPosition: `${tile.column * 100 / 3}% ${tile.row * 100 / 3}%`,
+  }} />;
+}
 
 export default function MandiRates() {
   const { t } = useTranslation();
@@ -52,6 +85,7 @@ export default function MandiRates() {
   }
 
   const money = (value: number | null) => value == null ? '—' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(value);
+  const perKg = (value: number | null, unit: string) => value == null || !unit.toLowerCase().includes('quintal') ? '—' : money(value / 100);
   return <div className="max-w-7xl mx-auto space-y-6">
     <header><p className="eyebrow">{t('features.marketIntelligence')}</p><h1 className="page-title">{t('features.mandiRates')}</h1>
       <p className="page-subtitle">{t('features.mandiSubtitle')}</p></header>
@@ -68,19 +102,32 @@ export default function MandiRates() {
     </form>
     {data?.comparison && <section className="panel border-l-4 border-l-amber-500">
       <p className="eyebrow">{t('features.highestComparable')}</p>
-      <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-2xl font-bold">₹{money(data.comparison.highest.modal_price)} / quintal</h2>
+      <div className="flex flex-wrap items-end justify-between gap-4"><div className="flex items-center gap-4"><CommodityImage commodity={data.comparison.highest.commodity} compact /><div>
+        <h2 className="text-2xl font-bold">₹{money(data.comparison.highest.modal_price)} / {t('features.quintal')}</h2>
+        <p className="font-semibold text-green-800">₹{perKg(data.comparison.highest.modal_price, data.comparison.highest.unit)} / {t('features.kg')}</p>
         <p>{data.comparison.highest.market}, {data.comparison.highest.district}, {data.comparison.highest.state}</p>
-        <p className="text-sm text-gray-600">{data.comparison.highest.commodity} · {data.comparison.highest.variety} · {data.comparison.highest.price_date}</p></div>
+        <p className="text-sm text-gray-600">{data.comparison.highest.commodity} · {data.comparison.highest.variety} · {data.comparison.highest.price_date}</p></div></div>
         <p className="max-w-xl text-sm text-gray-600">{data.comparison.scope} ({data.comparison.record_count} records compared.)</p></div>
     </section>}
     {loading ? <div className="panel" role="status">{t('features.loading')}</div> : error ? <div className="error-panel" role="alert"><strong>{t('features.providerError')}</strong><p>{error}</p></div> :
-      !data?.results.length ? <div className="panel empty-state">{t('features.noMarketRecords')}</div> : <section className="panel overflow-x-auto">
-        <table className="data-table"><caption className="sr-only">{t('features.mandiRates')}</caption><thead><tr>
-          {['commodity','variety','market','location','min','max','modal','date'].map(key => <th key={key}>{t('features.' + key)}</th>)}</tr></thead>
-          <tbody>{data.results.map((row, index) => <tr key={`${row.market}-${row.commodity}-${row.variety}-${row.price_date}-${index}`}>
-            <td className="font-semibold">{row.commodity}<button type="button" onClick={() => setTrendFor(row)} className="block text-xs text-green-700 underline mt-1">{t('features.viewTrend')}</button></td><td>{row.variety}</td><td>{row.market}</td><td>{row.district}, {row.state}</td>
-            <td>₹{money(row.min_price)}</td><td>₹{money(row.max_price)}</td><td className="font-semibold">₹{money(row.modal_price)}</td><td>{row.price_date}</td>
-          </tr>)}</tbody></table>
+      !data?.results.length ? <div className="panel empty-state">{t('features.noMarketRecords')}</div> : <section aria-label={t('features.mandiRates')}>
+        <div className="mandi-card-grid">{data.results.map((row, index) => <article className="mandi-price-card" key={`${row.market}-${row.commodity}-${row.variety}-${row.price_date}-${index}`}>
+          <div className="flex gap-4"><CommodityImage commodity={row.commodity} /><div className="min-w-0 flex-1">
+            <p className="eyebrow">{row.variety}</p><h2 className="section-title break-words">{row.commodity}</h2>
+            <p className="mt-1 text-sm font-semibold text-green-800">{row.market}</p>
+            <p className="text-sm text-gray-600">{row.district}, {row.state}</p><p className="mt-1 text-xs text-gray-500">{row.price_date}</p>
+          </div></div>
+          <div className="mandi-price-grid">
+            {([['min', row.min_price], ['modal', row.modal_price], ['max', row.max_price]] as const).map(([label, value]) => <div className={label === 'modal' ? 'mandi-price-box mandi-price-box-modal' : 'mandi-price-box'} key={label}>
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">{t('features.' + label)}</p>
+              <p className="mt-1 text-lg font-bold">₹{money(value)} <span className="text-xs font-medium">/ {t('features.quintal')}</span></p>
+              <p className="text-sm text-green-800">₹{perKg(value, row.unit)} / {t('features.kg')}</p>
+            </div>)}
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-green-950/10 pt-3"><p className="text-xs text-gray-500">{t('features.regionPrice')}</p>
+            <button type="button" onClick={() => setTrendFor(row)} className="text-sm font-semibold text-green-700 underline">{t('features.viewTrend')}</button></div>
+        </article>)}</div>
+        <p className="mt-3 text-xs text-gray-600">{t('features.kgConversionNote')}</p>
       </section>}
     {data && <footer className="flex flex-wrap justify-between gap-4 text-sm text-gray-600">
       <div><p>{data.source.name} · fetched {new Date(data.fetched_at).toLocaleString()} {data.cached ? '· cached' : ''}</p>

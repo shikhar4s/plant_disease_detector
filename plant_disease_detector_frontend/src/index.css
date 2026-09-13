@@ -42,11 +42,42 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .data-table { @apply w-full min-w-[900px] border-collapse text-sm; }
   .data-table th { @apply border-b bg-green-50 px-3 py-3 text-left font-bold text-green-950; }
   .data-table td { @apply border-b border-gray-100 px-3 py-3 align-top; }
+  .mandi-card-grid { @apply grid gap-4 sm:grid-cols-2 xl:grid-cols-3; }
+  .mandi-price-card { @apply flex flex-col gap-4 rounded-2xl border border-green-950/10 bg-white p-4 shadow-sm; }
+  .mandi-price-grid { @apply grid grid-cols-3 gap-2; }
+  .mandi-price-box { @apply rounded-xl bg-stone-50 p-3; }
+  .mandi-price-box-modal { @apply bg-green-50 ring-1 ring-green-200; }
   .risk-badge { @apply inline-flex rounded-full px-3 py-1 text-sm font-bold; }
   .risk-low { @apply bg-green-100 text-green-800; }
   .risk-moderate { @apply bg-amber-100 text-amber-800; }
   .risk-high { @apply bg-red-100 text-red-800; }
   .risk-unavailable { @apply bg-gray-100 text-gray-700; }
+}
+
+.commodity-image {
+  width: 6.5rem;
+  height: 6.5rem;
+  flex: 0 0 auto;
+  border-radius: 1rem;
+  background-color: #f7f5e9;
+  background-repeat: no-repeat;
+  background-size: 400% 400%;
+  box-shadow: inset 0 0 0 1px rgba(20, 83, 45, .08);
+}
+
+.commodity-image-compact { width: 4.75rem; height: 4.75rem; }
+.commodity-image-fallback {
+  display: grid;
+  place-items: center;
+  color: #166534;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+@media (max-width: 420px) {
+  .commodity-image { width: 5.25rem; height: 5.25rem; }
+  .mandi-price-grid { grid-template-columns: 1fr; }
 }
 
 /* Glassmorphism effect */
