@@ -305,4 +305,3 @@ class HealthCheckTests(TestCase):
         self.assertEqual(body['integrations']['gemini']['model'], 'gemini-3.5-flash')
         self.assertFalse(body['integrations']['mandi']['configured'])
         self.assertNotIn('never-return-this', str(body))
-

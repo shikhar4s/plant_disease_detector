@@ -158,4 +158,3 @@ def search_mandi(user_id, params):
             'fetched_at': payload['fetched_at'], 'cached': cached,
             'coverage': {'provider_total': payload['provider_total'], 'fetched_limit': payload['provider_limit'],
                          'complete': payload['provider_total'] <= payload['provider_limit']}}
-
