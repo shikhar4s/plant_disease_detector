@@ -15,6 +15,10 @@ SOURCE_NAME = 'AGMARKNET via data.gov.in'
 SOURCE_URL = 'https://www.data.gov.in/resource/current-daily-price-various-commodities-various-markets-mandi'
 API_URL = 'https://api.data.gov.in/resource/{resource_id}'
 DEFAULT_RESOURCE_ID = '9ef84268-d588-465a-a308-a864a43d0070'
+REQUEST_HEADERS = {
+    'Accept': 'application/json',
+    'User-Agent': 'PlantDoc/2.0 (+https://shikhar-plantdoc.onrender.com)',
+}
 
 
 class MandiProviderError(RuntimeError):
@@ -77,7 +81,12 @@ def _fetch(filters):
     if cached:
         return cached, True
     try:
-        response = requests.get(API_URL.format(resource_id=resource_id), params=params, timeout=(4, 18))
+        response = requests.get(
+            API_URL.format(resource_id=resource_id),
+            params=params,
+            headers=REQUEST_HEADERS,
+            timeout=(4, 18),
+        )
         response.raise_for_status()
         data = response.json()
     except (requests.RequestException, ValueError) as exc:
@@ -149,3 +158,4 @@ def search_mandi(user_id, params):
             'fetched_at': payload['fetched_at'], 'cached': cached,
             'coverage': {'provider_total': payload['provider_total'], 'fetched_limit': payload['provider_limit'],
                          'complete': payload['provider_total'] <= payload['provider_limit']}}
+

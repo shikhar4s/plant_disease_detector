@@ -2,7 +2,7 @@ import csv
 import io
 import os
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.core.cache import cache
 from django.test import TestCase
@@ -223,6 +223,20 @@ class PlantApiTests(TestCase):
         self.assertEqual(response.data['comparison']['highest']['market'], 'A')
         self.assertTrue(response.data['coverage']['complete'])
 
+    @patch('plant_doctor_ai.services.mandi_service.requests.get')
+    def test_mandi_provider_identifies_plantdoc_and_requests_json(self, get):
+        from .services.mandi_service import _fetch
+
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {'records': [], 'total': 0}
+        get.return_value = response
+        with patch.dict(os.environ, {'DATA_GOV_IN_API_KEY': 'test-only', 'MANDI_FETCH_LIMIT': '10'}):
+            _fetch({})
+        request = get.call_args
+        self.assertEqual(request.kwargs['headers']['Accept'], 'application/json')
+        self.assertTrue(request.kwargs['headers']['User-Agent'].startswith('PlantDoc/'))
+
     @patch('plant_doctor_ai.services.mandi_service._fetch')
     def test_mandi_query_numbers_are_validated(self, fetch):
         fetch.return_value = ({'records': [], 'provider_total': 0, 'provider_limit': 1000,
@@ -291,3 +305,4 @@ class HealthCheckTests(TestCase):
         self.assertEqual(body['integrations']['gemini']['model'], 'gemini-3.5-flash')
         self.assertFalse(body['integrations']['mandi']['configured'])
         self.assertNotIn('never-return-this', str(body))
+
