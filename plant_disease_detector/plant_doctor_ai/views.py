@@ -22,9 +22,11 @@ from .services.gemini_service import gemini_service
 from .services.model_service import model_service, class_names, display_name, model_manifest
 from .services.disease_registry import split_label
 from .services.mandi_service import search_mandi, MandiProviderError
+from .services.commodity_image_service import resolve_commodity_images
 from .services.weather_service import weather, WeatherProviderError
 from .services.risk_service import weather_risk
 from .services.context_store import load_context
+from .services.commodity_image_service import resolve_commodity_images
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +187,23 @@ class MandiHistoryView(APIView):
             'scope': 'Same commodity, variety, market, district, state and source unit; stored observations only.'})
 
 
+class CommodityImagesView(APIView):
+    throttle_scope = 'market'
+
+    def post(self, request):
+        names = request.data.get('commodities')
+        if not isinstance(names, list) or len(names) > 30 or any(not isinstance(name, str) for name in names):
+            return Response({'error': 'commodities must be a list of names.'}, status=400)
+        return Response({'images': resolve_commodity_images(names),
+                         'source': {'name': 'Wikimedia Commons', 'url': 'https://commons.wikimedia.org/'}})
+
+    def get(self, request):
+        raw = request.query_params.get('commodities', '')
+        commodities = [item.strip() for item in raw.split(',') if item.strip()][:30]
+        return Response({'images': resolve_commodity_images(commodities),
+                         'source': {'name': 'Wikimedia Commons', 'url': 'https://commons.wikimedia.org/'}})
+
+
 class WeatherView(APIView):
     throttle_scope = 'weather'
 
@@ -240,3 +259,4 @@ class ChatbotView(APIView):
         mandi_context = load_context(request.user.id, 'mandi', data.get('mandiContextId'))
         return Response(gemini_service.process_chat(data['history'], data['newMessage'],
             language=request.headers.get('Language'), analysis=analysis, weather=weather_context, mandi=mandi_context))
+

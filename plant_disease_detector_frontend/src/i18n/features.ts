@@ -51,7 +51,7 @@ export const featureTranslations = {
     "newest": "Newest data", "highest": "Highest price", "lowest": "Lowest price", "alphabetical": "Alphabetical",
     "applyFilters": "Apply filters", "clear": "Clear", "addWatchlist": "Add to watchlist", "chooseCommodity": "Choose a commodity first", "watchlistSaved": "Watchlist item saved",
     "highestComparable": "Highest comparable modal price", "location": "Location", "min": "Minimum", "max": "Maximum", "modal": "Modal price",
-    "quintal": "quintal", "kg": "kg", "regionPrice": "Market price for this region", "kgConversionNote": "₹/kg is calculated from the source ₹/quintal value (1 quintal = 100 kg); it is not a separate retail price.",
+    "quintal": "quintal", "kg": "kg", "regionPrice": "Market price for this region", "kgConversionNote": "₹/kg is calculated from the source ₹/quintal value (1 quintal = 100 kg); it is not a separate retail price.", "imageSource": "Image source",
     "providerError": "Provider error", "noMarketRecords": "No market records match these filters.", "partialCoverage": "Comparison is limited to the fetched provider window:",
     "priceTrends": "7 / 30 / 90-day trends", "viewTrend": "View trend", "historyUnavailable": "Historical data unavailable", "priceChange": "Change", "collectingHistory": "Collecting history", "historyHonesty": "Charts appear only after at least two comparable observations for the same commodity, variety, market and unit. Past data is never fabricated.",
     "farmWeather": "Farm weather", "weatherSubtitle": "Current conditions and a seven-day forecast from Open-Meteo.", "city": "City", "useLocation": "Use my location",
@@ -120,7 +120,7 @@ export const featureTranslations = {
     "newest": "नया डेटा", "highest": "सबसे ऊँचा भाव", "lowest": "सबसे कम भाव", "alphabetical": "वर्णक्रम",
     "applyFilters": "फ़िल्टर लागू करें", "clear": "साफ़ करें", "addWatchlist": "वॉचलिस्ट में जोड़ें", "chooseCommodity": "पहले जिंस चुनें", "watchlistSaved": "वॉचलिस्ट सहेजी गई",
     "highestComparable": "सबसे ऊँचा तुलनीय मॉडल भाव", "location": "स्थान", "min": "न्यूनतम", "max": "अधिकतम", "modal": "मॉडल भाव",
-    "quintal": "क्विंटल", "kg": "किलो", "regionPrice": "इस क्षेत्र का मंडी भाव", "kgConversionNote": "₹/किलो की गणना स्रोत के ₹/क्विंटल भाव से की गई है (1 क्विंटल = 100 किलो); यह अलग खुदरा भाव नहीं है।",
+    "quintal": "क्विंटल", "kg": "किलो", "regionPrice": "इस क्षेत्र का मंडी भाव", "kgConversionNote": "₹/किलो की गणना स्रोत के ₹/क्विंटल भाव से की गई है (1 क्विंटल = 100 किलो); यह अलग खुदरा भाव नहीं है।", "imageSource": "चित्र स्रोत",
     "providerError": "डेटा स्रोत त्रुटि", "noMarketRecords": "इन फ़िल्टरों से कोई मंडी रिकॉर्ड नहीं मिला।", "partialCoverage": "तुलना प्राप्त रिकॉर्ड तक सीमित है:",
     "priceTrends": "7 / 30 / 90 दिन के रुझान", "viewTrend": "रुझान देखें", "historyUnavailable": "पुराना डेटा उपलब्ध नहीं है", "priceChange": "बदलाव", "collectingHistory": "इतिहास एकत्र हो रहा है", "historyHonesty": "चार्ट केवल समान जिंस, किस्म, मंडी और इकाई के कम-से-कम दो रिकॉर्ड होने पर दिखेगा। पुराना डेटा बनाया नहीं जाता।",
     "farmWeather": "कृषि मौसम", "weatherSubtitle": "Open-Meteo से वर्तमान स्थिति और सात दिन का पूर्वानुमान।", "city": "शहर", "useLocation": "मेरा स्थान इस्तेमाल करें",
@@ -217,3 +217,4 @@ export const featureTranslations = {
     "developer": "Développeur"
   }
 };
+

@@ -2,42 +2,19 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
 import { api, messageOf } from '../../lib/api';
-import type { MandiHistory, MandiRecord, MandiResponse } from '../../lib/types';
+import type { CommodityImage as CommodityImageData, CommodityImagesResponse, MandiHistory, MandiRecord, MandiResponse } from '../../lib/types';
 import { usePlantData } from '../../contexts/PlantDataContext';
-import vegetableAtlas from '../../assets/vegetable-atlas.webp';
 
 const empty = { q: '', state: '', district: '', market: '', commodity: '', variety: '', date: '', sort: 'newest' };
 
-const vegetableTiles = [
-  { aliases: ['tomato'], column: 0, row: 0 },
-  { aliases: ['onion'], column: 1, row: 0 },
-  { aliases: ['potato'], column: 2, row: 0 },
-  { aliases: ['brinjal', 'eggplant'], column: 3, row: 0 },
-  { aliases: ['cabbage'], column: 0, row: 1 },
-  { aliases: ['cauliflower'], column: 1, row: 1 },
-  { aliases: ['carrot'], column: 2, row: 1 },
-  { aliases: ['okra', 'bhindi', 'ladies finger'], column: 3, row: 1 },
-  { aliases: ['capsicum', 'bell pepper'], column: 0, row: 2 },
-  { aliases: ['cucumber', 'cucumbar', 'kheera'], column: 1, row: 2 },
-  { aliases: ['peas', 'pea wet'], column: 2, row: 2 },
-  { aliases: ['garlic'], column: 3, row: 2 },
-  { aliases: ['ginger'], column: 0, row: 3 },
-  { aliases: ['pumpkin'], column: 1, row: 3 },
-  { aliases: ['spinach', 'palak'], column: 2, row: 3 },
-  { aliases: ['green chilli', 'green chili', 'chillies'], column: 3, row: 3 },
-];
-
-function CommodityImage({ commodity, compact = false }: { commodity: string; compact?: boolean }) {
-  const name = commodity.toLocaleLowerCase('en-IN');
-  const tile = vegetableTiles.find(item => item.aliases.some(alias => name.includes(alias)));
+function CommodityImage({ commodity, image, compact = false }: { commodity: string; image?: CommodityImageData | null; compact?: boolean }) {
   const className = compact ? 'commodity-image commodity-image-compact' : 'commodity-image';
-  if (!tile) return <div className={`${className} commodity-image-fallback`} role="img" aria-label={commodity}>
+  if (image?.url) return <a href={image.source_url} target="_blank" rel="noreferrer" className={compact ? 'commodity-image-link commodity-image-link-compact' : 'commodity-image-link'} aria-label={`${commodity} image source: ${image.title}`} title={`${image.title} · ${image.license}`}>
+    <img src={image.url} alt={`${commodity} from Wikimedia Commons`} className={className} loading="lazy" /><span className="commodity-image-credit">Wikimedia</span>
+  </a>;
+  return <div className={`${className} commodity-image-fallback`} role="img" aria-label={`${commodity} image unavailable`}>
     {commodity.trim().charAt(0).toLocaleUpperCase('en-IN') || '•'}
   </div>;
-  return <div className={className} role="img" aria-label={`${commodity} illustration`} style={{
-    backgroundImage: `url(${vegetableAtlas})`,
-    backgroundPosition: `${tile.column * 100 / 3}% ${tile.row * 100 / 3}%`,
-  }} />;
 }
 
 export default function MandiRates() {
@@ -52,6 +29,7 @@ export default function MandiRates() {
   const [trendFor, setTrendFor] = useState<MandiRecord | null>(null);
   const [trendDays, setTrendDays] = useState(30);
   const [trend, setTrend] = useState<MandiHistory | null>(null);
+  const [commodityImages, setCommodityImages] = useState<Record<string, CommodityImageData | null>>({});
   const query = new URLSearchParams({ ...filters, page: String(page), page_size: '20' }).toString();
 
   useEffect(() => {
@@ -63,6 +41,16 @@ export default function MandiRates() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [query, setMandiContextId]);
+
+  useEffect(() => {
+    if (!data?.results.length) return;
+    const commodities = Array.from(new Set(data.results.map(row => row.commodity)));
+    const controller = new AbortController();
+    api<CommodityImagesResponse>('/api/plant_doctor_ai/commodity-images/?commodities=' + encodeURIComponent(commodities.join(',')), { signal: controller.signal })
+      .then(result => setCommodityImages(previous => ({ ...previous, ...result.images })))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [data?.results]);
 
   useEffect(() => {
     if (!trendFor) return;
@@ -102,7 +90,7 @@ export default function MandiRates() {
     </form>
     {data?.comparison && <section className="panel border-l-4 border-l-amber-500">
       <p className="eyebrow">{t('features.highestComparable')}</p>
-      <div className="flex flex-wrap items-end justify-between gap-4"><div className="flex items-center gap-4"><CommodityImage commodity={data.comparison.highest.commodity} compact /><div>
+      <div className="flex flex-wrap items-end justify-between gap-4"><div className="flex items-center gap-4"><CommodityImage commodity={data.comparison.highest.commodity} image={commodityImages[data.comparison.highest.commodity]} compact /><div>
         <h2 className="text-2xl font-bold">₹{money(data.comparison.highest.modal_price)} / {t('features.quintal')}</h2>
         <p className="font-semibold text-green-800">₹{perKg(data.comparison.highest.modal_price, data.comparison.highest.unit)} / {t('features.kg')}</p>
         <p>{data.comparison.highest.market}, {data.comparison.highest.district}, {data.comparison.highest.state}</p>
@@ -112,7 +100,7 @@ export default function MandiRates() {
     {loading ? <div className="panel" role="status">{t('features.loading')}</div> : error ? <div className="error-panel" role="alert"><strong>{t('features.providerError')}</strong><p>{error}</p></div> :
       !data?.results.length ? <div className="panel empty-state">{t('features.noMarketRecords')}</div> : <section aria-label={t('features.mandiRates')}>
         <div className="mandi-card-grid">{data.results.map((row, index) => <article className="mandi-price-card" key={`${row.market}-${row.commodity}-${row.variety}-${row.price_date}-${index}`}>
-          <div className="flex gap-4"><CommodityImage commodity={row.commodity} /><div className="min-w-0 flex-1">
+          <div className="flex gap-4"><CommodityImage commodity={row.commodity} image={commodityImages[row.commodity]} /><div className="min-w-0 flex-1">
             <p className="eyebrow">{row.variety}</p><h2 className="section-title break-words">{row.commodity}</h2>
             <p className="mt-1 text-sm font-semibold text-green-800">{row.market}</p>
             <p className="text-sm text-gray-600">{row.district}, {row.state}</p><p className="mt-1 text-xs text-gray-500">{row.price_date}</p>
@@ -149,3 +137,4 @@ export default function MandiRates() {
       <p className="text-sm text-gray-600 mt-2">{t('features.historyHonesty')}</p></section>
   </div>;
 }
+

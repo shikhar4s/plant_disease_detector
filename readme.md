@@ -42,26 +42,29 @@ Production serves the compiled React application and Django API from the same Re
 
 ## Disease model
 
-The active artifact remains `plant_disease_detector/deployment_artifacts/plant_disease_model.pth` because the repository does not contain a labelled evaluation set, original split, duplicate groups, training log or dataset version. Replacing it with an unevaluated downloaded model would not meet the upgrade's evidence standard.
+The active artifact is the evaluated `efficientnet-b0-pv38-plantdoc-v1` checkpoint. It replaces the undocumented legacy CNN after a leakage-controlled PlantVillage split and a held-out PlantDoc field-image check. It remains a single-label classifier: confidence is not severity, and a high score does not prove that an upload is a supported leaf.
 
-- Model version: `legacy-cnn-pv38-v1`
-- Architecture: custom residual CNN, 6,594,222 state parameters
-- Classes: 38 single-label crop/condition classes, including healthy classes
-- Input: 256 × 256 RGB, bilinear resize, divide by 255 into `[0, 1]`
-- Weights size: 26,396,688 bytes (25.17 MiB)
-- SHA-256: `18451c4ba8262edbda24ef91954945d9b3da92db40f5b0a3cad9ef92b7439a86`
-- Local CPU benchmark: median 1,080.33 ms, p95 1,225.71 ms over 50 post-warm-up runs with one Torch thread; observed process RSS delta 57,896,960 bytes
-- Uncertainty threshold: 0.70 legacy display heuristic, **not calibrated**
-- Validation/test accuracy, precision, recall, macro F1, per-class metrics and confusion matrix: **unavailable and not claimed**
-- Field-image evaluation: **not performed**
+- Architecture: torchvision EfficientNet-B0 transfer learning; 38 classes including healthy classes
+- Input: 224 × 224 RGB, ImageNet resize/crop and mean/std normalization
+- Dataset split: PlantVillage color, 43,447 train / 5,428 validation / 5,430 test; exact-byte duplicate groups stay in one split
+- Field check: 1,825 mapped PlantDoc train images / 183 held-out test images (unsupported labels excluded rather than forced)
+- PlantVillage validation: accuracy 87.29%, macro precision 82.58%, macro recall 86.68%, macro F1 83.36%
+- PlantVillage test: accuracy 86.96%, macro precision 81.98%, macro recall 86.17%, macro F1 83.12%
+- PlantDoc field test: accuracy 49.73%, macro precision 27.15%, macro recall 26.87%, macro F1 25.10%
+- Legacy CNN on the same PlantDoc field test: accuracy 12.02%, macro F1 7.20%
+- Weights size: 16,533,943 bytes (15.77 MiB)
+- Local one-thread CPU observation: approximately 150 ms per warmed inference; host memory is environment-dependent and must be rechecked on Render
+- Uncertainty threshold: 0.80 acceptance gate calibrated on PlantVillage validation confidence; not a disease-severity score or a validated leaf detector
 
-See [docs/MODEL_CARD.md](docs/MODEL_CARD.md) for limitations, the candidate-architecture protocol and datasets reviewed. The machine-readable manifest is `plant_disease_detector/deployment_artifacts/model_manifest.json`; the ordered mapping is `plant_disease_detector/deployment_artifacts/class_names.json`.
+Per-class metrics and confusion matrices are in `deployment_artifacts/validation_metrics.json`, `test_metrics.json` and `field_metrics.json`. The machine-readable manifest is `deployment_artifacts/model_manifest_efficientnet_b0.json`; the ordered mapping is `deployment_artifacts/class_names.json`. See [docs/MODEL_CARD.md](docs/MODEL_CARD.md) for dataset licences, limitations and the legacy comparison.
 
 ## External APIs
 
 ### Mandi rates
 
 The backend uses the Government of India Open Government Data resource “Current Daily Price of Various Commodities from Various Markets (Mandi),” generated through AGMARKNET. It returns minimum, maximum and modal wholesale price; PlantDoc never describes modal price as an arithmetic average. The source unit is displayed as INR/quintal for this resource.
+
+Commodity cards load photographs on demand from Wikimedia Commons through the backend. Each image links to its Commons page and displays attribution; if no suitable image is returned, the UI shows a neutral fallback tile instead of a fabricated asset.
 
 `DATA_GOV_IN_API_KEY` is required. Requests use connect/read timeouts, 15-minute caching, bounded result windows, schema validation and clear provider errors. Comparisons state whether the provider total exceeded the fetched window.
 
@@ -181,4 +184,5 @@ Current URL: <https://shikhar-plantdoc.onrender.com>
 
 ## Attribution and limitations
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The major remaining blocker is a licence-recorded, duplicate-controlled labelled dataset and adequate training compute for a fair baseline/candidate/field evaluation. Until then, the current 38-class model stays in production with explicit uncertainty and out-of-distribution limitations.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The model has been upgraded and measured, but PlantDoc field performance remains materially lower than laboratory-style PlantVillage performance. Unsupported crops, non-leaf images and serious crop problems still require a clearer image or an agricultural expert; future work should add a separately validated leaf/OOD detector and more representative regional field data.
+

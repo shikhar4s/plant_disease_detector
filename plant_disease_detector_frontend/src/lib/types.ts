@@ -55,6 +55,20 @@ export interface MandiResponse {
   coverage: { provider_total: number; fetched_limit: number; complete: boolean };
   comparison: null | { highest: MandiRecord; record_count: number; scope: string };
 }
+export interface CommodityImage {
+  url: string; source_url: string; title: string; license: string; credit: string;
+}
+export interface CommodityImagesResponse {
+  images: Record<string, CommodityImage | null>;
+  source: { name: string; url: string };
+}
+export interface CommodityImage {
+  thumbnail_url: string; source_page: string; title: string; artist: string;
+  license: string; license_url: string; provider: string;
+}
+export interface CommodityImagesResponse {
+  images: Record<string, CommodityImage | null>; provider: string; partial: boolean;
+}
 export interface MandiHistory {
   status: 'available' | 'collecting' | 'unavailable'; message: string;
   points: { date: string; modal_price: number; unit: string }[];
@@ -70,3 +84,4 @@ export interface WeatherData {
   daily_units: Record<string, string>;
 }
 export interface RiskData { level: 'Low' | 'Moderate' | 'High' | 'Unavailable'; level_label?: string; score: number | null; reasons: string[]; method: string; rules_version?: string; references?: { title: string; url: string }[] }
+

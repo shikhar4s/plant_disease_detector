@@ -1,27 +1,32 @@
 # PlantDoc model card
 
-## Deployed model
+## Active model
 
-- Version: `legacy-cnn-pv38-v1`
-- Architecture: custom residual CNN (`3→64→128→256→512` channels, 6,594,222 state parameters, 38-way linear head)
-- Weights: `deployment_artifacts/plant_disease_model.pth`
-- SHA-256: `18451c4ba8262edbda24ef91954945d9b3da92db40f5b0a3cad9ef92b7439a86`
-- File size: 26,396,688 bytes (25.17 MiB)
-- Input: 256 × 256 RGB; bilinear resize; values divided by 255 into `[0, 1]`; no additional mean/std normalisation
+- Version: `efficientnet-b0-pv38-plantdoc-v1`
+- Architecture: torchvision EfficientNet-B0 transfer learning with a 38-way head
+- Weights: `deployment_artifacts/plant_disease_model_efficientnet_b0.pth` (16,533,943 bytes / 15.77 MiB)
+- Input: 224 × 224 RGB; EfficientNet resize/crop; ImageNet mean/std normalisation
 - Output: one class only. The model is not multilabel and cannot claim simultaneous diseases.
-- Display uncertainty rule: top confidence below 0.70. This is a legacy heuristic, not a calibrated threshold.
+- Uncertainty rule: top confidence below 0.80 is shown as uncertain. This threshold is calibrated against PlantVillage validation confidence; it is not a validated leaf detector and is not disease severity.
 
-The authoritative machine-readable version is `deployment_artifacts/model_manifest.json`; the ordered class mapping is `deployment_artifacts/class_names.json`.
+The authoritative machine-readable version is `deployment_artifacts/model_manifest_efficientnet_b0.json`; the ordered class mapping is `deployment_artifacts/class_names.json`.
 
 ## Measured runtime
 
-On the local Windows CPU environment (Python 3.12, PyTorch 2.7.1 CPU, one Torch thread), 50 inferences after one warm-up measured a 1,080.33 ms median and 1,225.71 ms p95. The observed process RSS increase from before model construction to after inference was 57,896,960 bytes. This is an observed process delta, not allocator-isolated peak memory and not a Render-host measurement.
+On the local Windows CPU environment (Python 3.12, PyTorch 2.7.1, one Torch thread), a warmed single-image benchmark was approximately 150 ms per inference. This is a local observation; Render memory and latency must be checked after deployment. The service keeps a legacy-CNN fallback if the candidate artifact is absent.
 
-## Accuracy and generalisation status
+## Accuracy and generalisation
 
-Validation accuracy, held-out test accuracy, precision, recall, macro F1, per-class metrics and a confusion matrix are **not available**. The repository contains no labelled evaluation set, original split, duplicate-group manifest, training log or dataset version. Five historical uploads exist, but they are not labelled ground truth and cannot support an accuracy calculation.
+PlantVillage color split (38 classes): 43,447 train / 5,428 validation / 5,430 held-out test. Exact-byte duplicate groups were kept in one split. PlantDoc contributed 1,825 mapped training images and 183 held-out field images; incompatible labels were excluded rather than silently remapped.
 
-Because no comparable evaluation is possible, this upgrade does not replace the weights with an unevaluated download and does not claim improved disease accuracy. MobileNetV3, EfficientNet-B0, ResNet-18 and DenseNet-121 remain reasonable transfer-learning candidates, but selection requires the same leakage-controlled train/validation/test and field-test protocol.
+| Evaluation | Accuracy | Macro precision | Macro recall | Macro F1 |
+| --- | ---: | ---: | ---: | ---: |
+| PlantVillage validation | 87.29% | 82.58% | 86.68% | 83.36% |
+| PlantVillage test | 86.96% | 81.98% | 86.17% | 83.12% |
+| PlantDoc field test | 49.73% | 27.15% | 26.87% | 25.10% |
+| Legacy CNN, same field test | 12.02% | 9.22% | 7.50% | 7.20% |
+
+Per-class reports and confusion matrices are stored in `validation_metrics.json`, `test_metrics.json` and `field_metrics.json`. The field score is substantially better than the legacy baseline but still demonstrates domain shift; the UI therefore preserves conservative uncertainty messaging and the agricultural disclaimer.
 
 ## Required replacement protocol
 
@@ -41,3 +46,4 @@ Because no comparable evaluation is possible, this upgrade does not replace the 
 ## Safety and limitations
 
 The API rejects unreadable, oversized, extreme-brightness and almost detail-free images before inference. This is only an image-quality gate, not a validated leaf detector. For every accepted image the classifier still chooses among its 38 classes. Confidence is not severity, treatment certainty or proof that the upload is supported. Serious or spreading crop problems require professional agricultural advice.
+

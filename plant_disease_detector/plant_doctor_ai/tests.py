@@ -237,6 +237,47 @@ class PlantApiTests(TestCase):
         self.assertEqual(request.kwargs['headers']['Accept'], 'application/json')
         self.assertTrue(request.kwargs['headers']['User-Agent'].startswith('PlantDoc/'))
 
+    @patch('plant_doctor_ai.services.commodity_image_service.requests.get')
+    def test_commodity_images_return_cached_attribution_metadata(self, get):
+        cache.clear()
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {'query': {'pages': [{
+            'title': 'File:Tomato.jpg', 'imageinfo': [{'mime': 'image/jpeg', 'thumburl': 'https://upload.wikimedia.org/tomato.jpg',
+                'extmetadata': {'LicenseShortName': {'value': 'CC BY-SA 4.0'}, 'Artist': {'value': 'Example'}}}]}]}}
+        get.return_value = response
+        from .services.commodity_image_service import resolve_commodity_images
+        result = resolve_commodity_images(['Tomato'])
+        self.assertEqual(result['Tomato']['license'], 'CC BY-SA 4.0')
+        self.assertIn('commons.wikimedia.org/wiki/File%3ATomato.jpg', result['Tomato']['source_url'])
+
+    @patch('plant_doctor_ai.services.commodity_image_service.requests.get')
+    def test_commodity_images_are_dynamic_cached_and_attributed(self, get):
+        cache.clear()
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {'query': {'pages': [{
+            'title': 'File:Tomatoes.jpg',
+            'imageinfo': [{'mime': 'image/jpeg', 'thumburl': 'https://upload.wikimedia.org/example/360px-Tomatoes.jpg',
+                'extmetadata': {'LicenseShortName': {'value': 'CC BY-SA 4.0'}, 'Artist': {'value': '<b>Example photographer</b>'}}}],
+        }]}}
+        get.return_value = response
+        first = self.client.post(API + 'mandi/images/', {'commodities': ['Tomato', 'Tomato']}, format='json')
+        second = self.client.post(API + 'mandi/images/', {'commodities': ['Tomato']}, format='json')
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertEqual(first.data['images']['Tomato']['license'], 'CC BY-SA 4.0')
+        self.assertEqual(first.data['images']['Tomato']['credit'], 'Example photographer')
+        self.assertEqual(first.data, second.data)
+        self.assertEqual(get.call_count, 1)
+        self.assertTrue(get.call_args.kwargs['headers']['User-Agent'].startswith('PlantDoc/'))
+
+    def test_commodity_image_request_is_bounded(self):
+        response = self.client.post(API + 'mandi/images/', {'commodities': 'Tomato'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post(
+            API + 'mandi/images/', {'commodities': [f'item-{index}' for index in range(31)]}, format='json')
+        self.assertEqual(response.status_code, 400)
+
     @patch('plant_doctor_ai.services.mandi_service._fetch')
     def test_mandi_query_numbers_are_validated(self, fetch):
         fetch.return_value = ({'records': [], 'provider_total': 0, 'provider_limit': 1000,
@@ -305,3 +346,4 @@ class HealthCheckTests(TestCase):
         self.assertEqual(body['integrations']['gemini']['model'], 'gemini-3.5-flash')
         self.assertFalse(body['integrations']['mandi']['configured'])
         self.assertNotIn('never-return-this', str(body))
+
