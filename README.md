@@ -38,7 +38,7 @@ Django REST Framework
  └─ PostgreSQL persistence and owner isolation
 ```
 
-Production serves the compiled React application and Django API from the same Render web service. WhiteNoise serves static assets; Gunicorn uses one worker/thread to stay within the free service's 512 MiB memory limit.
+Production serves the compiled React application and Django API from the same Render web service. WhiteNoise serves static assets; Gunicorn uses one process with three threads so its health check can respond during CPU-bound model inference without loading multiple model copies. The free service still has a 512 MiB memory limit.
 
 ## Disease model
 
