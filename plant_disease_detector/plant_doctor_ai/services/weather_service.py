@@ -1,12 +1,14 @@
 """Open-Meteo geocoding and forecast client with bounded caching."""
 import hashlib
 import json
+import logging
 import requests
 from django.core.cache import cache
 from django.utils import timezone
 from .context_store import store_context
 
 SOURCE = {'name': 'Open-Meteo', 'url': 'https://open-meteo.com/'}
+logger = logging.getLogger(__name__)
 
 
 class WeatherProviderError(RuntimeError):
@@ -25,6 +27,10 @@ def _request(url, params):
         if not isinstance(result, dict) or result.get('error'):
             raise ValueError('Invalid weather provider response')
     except (requests.RequestException, ValueError) as exc:
+        # Never log provider query parameters (which may contain coordinates).
+        response = getattr(exc, 'response', None)
+        logger.warning('Weather provider %s failed: %s, HTTP %s', url.split('/')[2],
+                       type(exc).__name__, getattr(response, 'status_code', None))
         raise WeatherProviderError('Weather information is temporarily unavailable.') from exc
     cache.set('weather:' + key, result, 600)
     return result, False
