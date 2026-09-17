@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
 import { api, messageOf } from '../../lib/api';
@@ -8,9 +8,11 @@ import { usePlantData } from '../../contexts/PlantDataContext';
 const empty = { q: '', state: '', district: '', market: '', commodity: '', variety: '', date: '', sort: 'newest' };
 
 function CommodityImage({ commodity, image, compact = false }: { commodity: string; image?: CommodityImageData | null; compact?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [image?.url]);
   const className = compact ? 'commodity-image commodity-image-compact' : 'commodity-image';
-  if (image?.url) return <a href={image.source_url} target="_blank" rel="noreferrer" className={compact ? 'commodity-image-link commodity-image-link-compact' : 'commodity-image-link'} aria-label={`${commodity} image source: ${image.title}`} title={`${image.title} · ${image.license}`}>
-    <img src={image.url} alt={`${commodity} from Wikimedia Commons`} className={className} loading="lazy" /><span className="commodity-image-credit">Wikimedia</span>
+  if (image?.url && !failed) return <a href={image.source_url} target="_blank" rel="noreferrer" className={compact ? 'commodity-image-link commodity-image-link-compact' : 'commodity-image-link'} aria-label={`${commodity} image source: ${image.title}`} title={`${image.title} · ${image.credit} · ${image.license}`}>
+    <img src={image.url} alt={`${commodity} from Wikimedia Commons`} className={className} loading="lazy" onError={() => setFailed(true)} /><span className="commodity-image-credit">{image.credit} · {image.license}</span>
   </a>;
   return <div className={`${className} commodity-image-fallback`} role="img" aria-label={`${commodity} image unavailable`}>
     {commodity.trim().charAt(0).toLocaleUpperCase('en-IN') || '•'}
@@ -18,7 +20,8 @@ function CommodityImage({ commodity, image, compact = false }: { commodity: stri
 }
 
 export default function MandiRates() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const hi = i18n.language.startsWith('hi');
   const { setMandiContextId } = usePlantData();
   const [form, setForm] = useState(empty);
   const [filters, setFilters] = useState(empty);
@@ -29,6 +32,21 @@ export default function MandiRates() {
   const [trendFor, setTrendFor] = useState<MandiRecord | null>(null);
   const [trendDays, setTrendDays] = useState(30);
   const [trend, setTrend] = useState<MandiHistory | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState('');
+  const trendPanel = useRef<HTMLElement>(null);
+  const [options, setOptions] = useState<Record<string, string[]>>({});
+  const [optionsError, setOptionsError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ state: form.state, district: form.district, market: form.market });
+      void api<{ options: Record<string, string[]> }>('/api/plant_doctor_ai/mandi/options/?' + params, { signal: controller.signal })
+        .then(result => { if (!controller.signal.aborted) { setOptions(result.options); setOptionsError(''); } })
+        .catch(cause => { if (!controller.signal.aborted) setOptionsError(messageOf(cause)); });
+    }, 450);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [form.state, form.district, form.market]);
   const [commodityImages, setCommodityImages] = useState<Record<string, CommodityImageData | null>>({});
   const query = new URLSearchParams({ ...filters, page: String(page), page_size: '20' }).toString();
 
@@ -46,7 +64,7 @@ export default function MandiRates() {
     if (!data?.results.length) return;
     const commodities = Array.from(new Set(data.results.map(row => row.commodity)));
     const controller = new AbortController();
-    api<CommodityImagesResponse>('/api/plant_doctor_ai/commodity-images/?commodities=' + encodeURIComponent(commodities.join(',')), { signal: controller.signal })
+    api<CommodityImagesResponse>('/api/plant_doctor_ai/commodity-images/', { method: 'POST', body: JSON.stringify({ commodities }), signal: controller.signal })
       .then(result => setCommodityImages(previous => ({ ...previous, ...result.images })))
       .catch(() => undefined);
     return () => controller.abort();
@@ -55,10 +73,13 @@ export default function MandiRates() {
   useEffect(() => {
     if (!trendFor) return;
     const controller = new AbortController();
+    setTrend(null); setTrendLoading(true); setTrendError('');
     const params = new URLSearchParams({ commodity: trendFor.commodity, variety: trendFor.variety,
-      market: trendFor.market, district: trendFor.district, state: trendFor.state, days: String(trendDays) });
+      market: trendFor.market, district: trendFor.district, state: trendFor.state, unit: trendFor.unit, days: String(trendDays) });
     api<MandiHistory>('/api/plant_doctor_ai/mandi/history/?' + params, { signal: controller.signal })
-      .then(setTrend).catch(error => { if (!controller.signal.aborted) setError(messageOf(error)); });
+      .then(result => { if (!controller.signal.aborted) setTrend(result); })
+      .catch(error => { if (!controller.signal.aborted) setTrendError(messageOf(error)); })
+      .finally(() => { if (!controller.signal.aborted) setTrendLoading(false); });
     return () => controller.abort();
   }, [trendFor, trendDays]);
 
@@ -73,14 +94,18 @@ export default function MandiRates() {
   }
 
   const money = (value: number | null) => value == null ? '—' : new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(value);
-  const perKg = (value: number | null, unit: string) => value == null || !unit.toLowerCase().includes('quintal') ? '—' : money(value / 100);
+  const perKg = (value: number | null, unit: string) => value == null || unit !== 'INR/quintal' ? '—' : money(value / 100);
   return <div className="max-w-7xl mx-auto space-y-6">
     <header><p className="eyebrow">{t('features.marketIntelligence')}</p><h1 className="page-title">{t('features.mandiRates')}</h1>
       <p className="page-subtitle">{t('features.mandiSubtitle')}</p></header>
     <form onSubmit={event => { event.preventDefault(); setFilters(form); setPage(1); }} className="panel grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
       {(['q','state','district','market','commodity','variety'] as const).map(key => <label key={key} className="field-label">
-        {t('features.' + key)}<input value={form[key]} onChange={event => setForm({ ...form, [key]: event.target.value })}
-          placeholder={t('features.' + key)} className="field" maxLength={160} /></label>)}
+        {t('features.' + key)}<input value={form[key]} list={options[key] ? `mandi-${key}` : undefined} onChange={event => setForm({ ...form, [key]: event.target.value,
+          ...(key === 'state' ? { district: '', market: '' } : key === 'district' ? { market: '' } : {}) })}
+          placeholder={t('features.' + key)} className="field" maxLength={160} />
+        {options[key] && <datalist id={`mandi-${key}`}>{options[key].map(value => <option key={value} value={value} />)}</datalist>}</label>)}
+      <p className="sm:col-span-2 xl:col-span-4 text-xs text-gray-600">{hi ? 'विकल्प प्राप्त और सहेजे गए रिकॉर्ड से हैं; सूची पूर्ण नहीं है। आप दूसरा नाम भी लिख सकते हैं।' : 'Options come from fetched and saved records, not a complete directory. You can also type another value.'}</p>
+      {optionsError && <p role="status" className="sm:col-span-2 xl:col-span-4 text-sm text-amber-800">{hi ? 'विकल्प उपलब्ध नहीं हैं; फ़िल्टर में नाम लिखें।' : 'Suggestions are unavailable; type a filter value instead.'}</p>}
       <label className="field-label">{t('features.date')}<input type="date" value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} className="field" /></label>
       <label className="field-label">{t('features.sort')}<select value={form.sort} onChange={event => setForm({ ...form, sort: event.target.value })} className="field">
         {['newest','highest','lowest','alphabetical'].map(value => <option key={value} value={value}>{t('features.' + value)}</option>)}</select></label>
@@ -91,7 +116,7 @@ export default function MandiRates() {
     {data?.comparison && <section className="panel border-l-4 border-l-amber-500">
       <p className="eyebrow">{t('features.highestComparable')}</p>
       <div className="flex flex-wrap items-end justify-between gap-4"><div className="flex items-center gap-4"><CommodityImage commodity={data.comparison.highest.commodity} image={commodityImages[data.comparison.highest.commodity]} compact /><div>
-        <h2 className="text-2xl font-bold">₹{money(data.comparison.highest.modal_price)} / {t('features.quintal')}</h2>
+        <h2 className="text-2xl font-bold">₹{money(data.comparison.highest.modal_price)} · {data.comparison.highest.unit}</h2>
         <p className="font-semibold text-green-800">₹{perKg(data.comparison.highest.modal_price, data.comparison.highest.unit)} / {t('features.kg')}</p>
         <p>{data.comparison.highest.market}, {data.comparison.highest.district}, {data.comparison.highest.state}</p>
         <p className="text-sm text-gray-600">{data.comparison.highest.commodity} · {data.comparison.highest.variety} · {data.comparison.highest.price_date}</p></div></div>
@@ -108,12 +133,12 @@ export default function MandiRates() {
           <div className="mandi-price-grid">
             {([['min', row.min_price], ['modal', row.modal_price], ['max', row.max_price]] as const).map(([label, value]) => <div className={label === 'modal' ? 'mandi-price-box mandi-price-box-modal' : 'mandi-price-box'} key={label}>
               <p className="text-xs font-bold uppercase tracking-wide text-gray-500">{t('features.' + label)}</p>
-              <p className="mt-1 text-lg font-bold">₹{money(value)} <span className="text-xs font-medium">/ {t('features.quintal')}</span></p>
+              <p className="mt-1 text-lg font-bold">₹{money(value)} <span className="text-xs font-medium">· {row.unit}</span></p>
               <p className="text-sm text-green-800">₹{perKg(value, row.unit)} / {t('features.kg')}</p>
             </div>)}
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-green-950/10 pt-3"><p className="text-xs text-gray-500">{t('features.regionPrice')}</p>
-            <button type="button" onClick={() => setTrendFor(row)} className="text-sm font-semibold text-green-700 underline">{t('features.viewTrend')}</button></div>
+            <button type="button" onClick={() => { setTrendFor(row); trendPanel.current?.scrollIntoView({ block: 'start' }); trendPanel.current?.focus({ preventScroll: true }); }} className="text-sm font-semibold text-green-700 underline">{t('features.viewTrend')}</button></div>
         </article>)}</div>
         <p className="mt-3 text-xs text-gray-600">{t('features.kgConversionNote')}</p>
       </section>}
@@ -122,16 +147,17 @@ export default function MandiRates() {
         {!data.coverage.complete && <p className="text-amber-700">{t('features.partialCoverage')} {data.coverage.fetched_limit} / {data.coverage.provider_total}</p>}</div>
       <div className="flex items-center gap-3"><button disabled={!data.previous} onClick={() => setPage(value => value - 1)} className="secondary-button">{t('features.previous')}</button>
         <span>{page}</span><button disabled={!data.next} onClick={() => setPage(value => value + 1)} className="secondary-button">{t('features.next')}</button></div></footer>}
-    <section className="panel"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="section-title">{t('features.priceTrends')}</h2>
+    <section ref={trendPanel} tabIndex={-1} aria-label={t('features.priceTrends')} className="panel"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="section-title">{t('features.priceTrends')}</h2>
       {trendFor && <p className="text-sm text-gray-600">{trendFor.commodity} · {trendFor.variety} · {trendFor.market}</p>}</div>
       <div className="flex gap-2">{[7,30,90].map(days => <button type="button" key={days} onClick={() => setTrendDays(days)} className={days === trendDays ? 'primary-button' : 'secondary-button'}>{days}d</button>)}</div></div>
-      {!trendFor ? <p className="mt-4">{t('features.historyUnavailable')}</p> : trend?.status === 'available' && trend.points.length >= 2 ? <div className="mt-4">
+      {!trendFor ? <p className="mt-4">{t('features.historyUnavailable')}</p> : trendLoading ? <p role="status" className="mt-4">{t('features.loading')}</p> : trendError ? <p role="alert" className="error-panel mt-4">{trendError}</p> : trend?.status === 'available' && trend.points.length >= 2 ? <div className="mt-4">
         <svg role="img" aria-label={t('features.priceTrends')} viewBox="0 0 600 180" className="w-full h-44 border rounded-lg bg-green-50">
           <polyline fill="none" stroke="currentColor" strokeWidth="4" className="text-green-700" points={trend.points.map((point, index) => {
             const values = trend.points.map(item => item.modal_price); const min = Math.min(...values); const max = Math.max(...values);
             const x = trend.points.length === 1 ? 300 : index * 580 / (trend.points.length - 1) + 10;
             const y = max === min ? 90 : 160 - (point.modal_price - min) * 140 / (max - min); return `${x},${y}`;
           }).join(' ')} /></svg>
+        <table className="w-full mt-3 text-sm"><caption>{t('features.priceTrends')}</caption><thead><tr><th>{t('features.date')}</th><th>{t('features.modal')}</th></tr></thead><tbody>{trend.points.map(point => <tr key={point.date}><td>{point.date}</td><td>₹{money(point.modal_price)} · {point.unit}</td></tr>)}</tbody></table>
         <p className="mt-2 font-semibold">{t('features.priceChange')}: {trend.percentage_change == null ? '—' : `${trend.percentage_change}%`}</p><p className="text-xs text-gray-600">{trend.scope}</p></div> :
         <p className="mt-4">{trend?.message || t('features.collectingHistory')}</p>}
       <p className="text-sm text-gray-600 mt-2">{t('features.historyHonesty')}</p></section>

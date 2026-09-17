@@ -27,7 +27,7 @@ const MainContent: React.FC<MainContentProps> = ({ activeTab, setActiveTab }) =>
       case 'history':
         return <HistorySection />;
       case 'assistant':
-        return <Chatbot embedded />;
+        return null;
       case 'profile':
         return <ProfileSection />;
       case 'about':
@@ -38,10 +38,12 @@ const MainContent: React.FC<MainContentProps> = ({ activeTab, setActiveTab }) =>
   };
 
   return (
-    <div className="flex-1 min-w-0 p-4 md:p-8">
+    <div className="flex-1 min-w-0 p-4 pb-24 md:p-8 md:pb-24">
       <Suspense fallback={<p role="status" className="panel">Loading…</p>}>{renderContent()}</Suspense>
+      <Chatbot embedded={activeTab === 'assistant'} />
     </div>
   );
 };
 
 export default MainContent;
+

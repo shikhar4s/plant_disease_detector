@@ -1,0 +1,11 @@
+{
+  "experiment_date": "2026-09-15",
+  "seed": 20260914,
+  "datasets": [
+    {"name": "PlantVillage color", "source": "https://github.com/spMohanty/PlantVillage-Dataset", "archive_sha256": "858df90a05ab147fa2b0a32c47053128c4ca772326c43e962856e69290012374", "license": "CC BY-SA 3.0, declared in upstream README_HF.md"},
+    {"name": "Cropped PlantDoc", "source": "https://github.com/pratikkayal/PlantDoc-Dataset", "archive_sha256": "345548bb3659519f425608b428d8a2ca338032b7b02c3cb3c3bb2954fc8986d9", "license": "CC BY 4.0, upstream LICENSE.txt"}
+  ],
+  "runtime_note": "The evaluation report peak includes GPU training allocations and is not an inference memory measurement. field_v2_runtime.json is the separate CPU-only inference process benchmark.",
+  "model_license": "CC BY-SA 3.0 for the newly trained checkpoint; retain PlantVillage and PlantDoc attribution. Dependency code retains its own licences."
+}
+

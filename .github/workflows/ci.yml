@@ -35,6 +35,8 @@ jobs:
           cache: pip
           cache-dependency-path: plant_disease_detector/requirements.txt
       - run: pip install -r requirements.txt
+      - run: python ../scripts/prepare_model.py
       - run: python manage.py collectstatic --noinput
       - run: python manage.py makemigrations --check --dry-run
       - run: python manage.py test
+

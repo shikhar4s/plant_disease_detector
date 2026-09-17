@@ -241,6 +241,7 @@ class PlantApiTests(TestCase):
     def test_commodity_images_return_cached_attribution_metadata(self, get):
         cache.clear()
         response = Mock()
+        response.status_code = 200
         response.raise_for_status.return_value = None
         response.json.return_value = {'query': {'pages': [{
             'title': 'File:Tomato.jpg', 'imageinfo': [{'mime': 'image/jpeg', 'thumburl': 'https://upload.wikimedia.org/tomato.jpg',
@@ -255,6 +256,7 @@ class PlantApiTests(TestCase):
     def test_commodity_images_are_dynamic_cached_and_attributed(self, get):
         cache.clear()
         response = Mock()
+        response.status_code = 200
         response.raise_for_status.return_value = None
         response.json.return_value = {'query': {'pages': [{
             'title': 'File:Tomatoes.jpg',
@@ -268,7 +270,7 @@ class PlantApiTests(TestCase):
         self.assertEqual(first.data['images']['Tomato']['license'], 'CC BY-SA 4.0')
         self.assertEqual(first.data['images']['Tomato']['credit'], 'Example photographer')
         self.assertEqual(first.data, second.data)
-        self.assertEqual(get.call_count, 1)
+        self.assertEqual(get.call_count, 2)
         self.assertTrue(get.call_args.kwargs['headers']['User-Agent'].startswith('PlantDoc/'))
 
     def test_commodity_image_request_is_bounded(self):

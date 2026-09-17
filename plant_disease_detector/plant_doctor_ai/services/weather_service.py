@@ -22,16 +22,66 @@ def _request(url, params):
         response = requests.get(url, params=params, timeout=(4, 15))
         response.raise_for_status()
         result = response.json()
+        if not isinstance(result, dict) or result.get('error'):
+            raise ValueError('Invalid weather provider response')
     except (requests.RequestException, ValueError) as exc:
         raise WeatherProviderError('Weather information is temporarily unavailable.') from exc
     cache.set('weather:' + key, result, 600)
     return result, False
 
 
-def weather(user_id, *, city='', latitude=None, longitude=None, language='en'):
+def _location_coordinates(location):
+    try:
+        latitude, longitude = float(location['latitude']), float(location['longitude'])
+        if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+            raise ValueError
+        return latitude, longitude
+    except (TypeError, KeyError, ValueError) as exc:
+        raise WeatherProviderError('The selected location is unavailable. Search for it again.') from exc
+
+
+def search_locations(query, language='en'):
+    query = str(query).strip()
+    if not 2 <= len(query) <= 120:
+        raise WeatherProviderError('Enter a city name between 2 and 120 characters.')
+    payload, cached = _request('https://geocoding-api.open-meteo.com/v1/search',
+                              {'name': query, 'count': 10, 'language': language[:2], 'format': 'json'})
+    locations = []
+    items = payload.get('results', [])
+    if not isinstance(items, list):
+        raise WeatherProviderError('Weather information is temporarily unavailable.')
+    for item in items[:10]:
+        try:
+            latitude, longitude = _location_coordinates(item)
+            identifier = int(item['id'])
+            name = str(item['name'])[:120]
+            if identifier <= 0 or not name:
+                continue
+        except (WeatherProviderError, KeyError, TypeError, ValueError, AttributeError):
+            continue
+        locations.append({
+            'id': identifier, 'name': name, 'latitude': latitude, 'longitude': longitude,
+            'state': str(item.get('admin1', ''))[:120], 'district': str(item.get('admin2', ''))[:120],
+            'country': str(item.get('country', ''))[:120], 'country_code': str(item.get('country_code', ''))[:2],
+            'timezone': str(item.get('timezone', ''))[:120],
+        })
+    return {'locations': locations, 'source': SOURCE, 'cached': cached}
+
+
+def weather(user_id, *, city='', latitude=None, longitude=None, language='en', location_id=None):
     location = None
     cached = False
-    if latitude is None or longitude is None:
+    if location_id is not None:
+        try:
+            identifier = int(str(location_id))
+            if not 0 < identifier <= 2147483647:
+                raise ValueError
+        except (TypeError, ValueError) as exc:
+            raise WeatherProviderError('Choose a valid location from the search results.') from exc
+        location, cached = _request('https://geocoding-api.open-meteo.com/v1/get',
+                                    {'id': identifier, 'language': language[:2], 'format': 'json'})
+        latitude, longitude = _location_coordinates(location)
+    elif latitude is None or longitude is None:
         city = str(city).strip()[:120]
         if len(city) < 2:
             raise WeatherProviderError('Enter a city or share a location.')
@@ -40,7 +90,7 @@ def weather(user_id, *, city='', latitude=None, longitude=None, language='en'):
         if not geocoded.get('results'):
             raise WeatherProviderError('No matching city was found.')
         location = geocoded['results'][0]
-        latitude, longitude = location['latitude'], location['longitude']
+        latitude, longitude = _location_coordinates(location)
     else:
         try:
             latitude, longitude = float(latitude), float(longitude)
@@ -75,3 +125,4 @@ def weather(user_id, *, city='', latitude=None, longitude=None, language='en'):
     }
     result['context_id'] = store_context(user_id, 'weather', result, 900)
     return result
+

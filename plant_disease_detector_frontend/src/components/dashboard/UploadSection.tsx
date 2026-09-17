@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CloudArrowUpIcon, CameraIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { CloudArrowUpIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { usePlantData } from '../../contexts/PlantDataContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -9,6 +9,7 @@ import { api, messageOf } from '../../lib/api';
 import type { Analysis } from '../../lib/types';
 import ResultCard from './ResultCard';
 import ResultModal from './ResultModal';
+import CameraCapture from './CameraCapture';
 
 export default function UploadSection() {
   const { t } = useTranslation();
@@ -21,7 +22,6 @@ export default function UploadSection() {
   const [preview, setPreview] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const cameraInput = useRef<HTMLInputElement>(null);
   const inFlight = useRef<AbortController | null>(null);
 
   useEffect(() => () => { inFlight.current?.abort(); }, []);
@@ -95,15 +95,10 @@ export default function UploadSection() {
           <p className="text-sm text-gray-600 mb-5">JPEG, PNG, WebP · 10 MB · 12 MP</p>
           <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
             onChange={event => { handleFiles(Array.from(event.target.files || [])); event.target.value = ''; }} />
-          <input ref={cameraInput} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden"
-            onChange={event => { handleFiles(Array.from(event.target.files || [])); event.target.value = ''; }} />
           <div className="flex flex-wrap justify-center gap-3">
             <button disabled={isAnalyzing} onClick={() => fileInput.current?.click()}
               className="bg-green-600 text-white px-5 py-3 rounded-lg disabled:opacity-50">{t('dashboard.upload.chooseFile')}</button>
-            <button disabled={isAnalyzing} onClick={() => cameraInput.current?.click()}
-              className="bg-white border border-green-600 text-green-700 px-4 py-3 rounded-lg inline-flex gap-2 disabled:opacity-50">
-              <CameraIcon className="w-5 h-5" />{t('features.camera')}
-            </button>
+            <CameraCapture disabled={isAnalyzing} onCapture={capture => handleFiles([capture])} />
           </div>
         </div>
         {file && <div className="bg-white rounded-xl border border-green-200 p-4 flex flex-wrap gap-3 items-center justify-between">
@@ -123,7 +118,7 @@ export default function UploadSection() {
         <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-sm text-green-900 space-y-2">
           <h2 className="font-semibold">{t('features.photoTips')}</h2>
           <p>Use one leaf, natural daylight and a plain background. Include the affected area and avoid blur.</p>
-          <p>The model always chooses from its internal 38-class registry and cannot reliably reject every unrelated or unsupported photo.</p>
+          <p>{language.startsWith('hi') ? 'यह एक प्रारंभिक सहायता है। मॉडल अपरिचित पौधों और वास्तविक खेत की फ़ोटो पर गलत हो सकता है; गंभीर समस्या में कृषि विशेषज्ञ की सलाह लें।' : 'This is preliminary guidance. The model can be wrong on unfamiliar plants and field photos; ask an agricultural expert about serious crop problems.'}</p>
         </div>
       </div>
       <div>
@@ -140,3 +135,4 @@ export default function UploadSection() {
       onUpdate={setSelectedImage} />}
   </div>;
 }
+

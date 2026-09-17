@@ -1,0 +1,9 @@
+{
+  "model_version": "efficientnet-b0-field-v2",
+  "filename": "plant_disease_model_field_v2.pth",
+  "chunks": "field_v2_chunks",
+  "manifest": "model_manifest_field_v2.json",
+  "sha256": "1324ac6fae2e3e729ee8736259405f12a4ab4e35664e38ace121b6aea51e0a76",
+  "promotion_status": "Selected after corrected field evaluation, CPU benchmark and limited non-leaf smoke checks; production memory verification required."
+}
+

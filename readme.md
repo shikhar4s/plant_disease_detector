@@ -42,21 +42,11 @@ Production serves the compiled React application and Django API from the same Re
 
 ## Disease model
 
-The active artifact is the evaluated `efficientnet-b0-pv38-plantdoc-v1` checkpoint. It replaces the undocumented legacy CNN after a leakage-controlled PlantVillage split and a held-out PlantDoc field-image check. It remains a single-label classifier: confidence is not severity, and a high score does not prove that an upload is a supported leaf.
+The selected artifact is `efficientnet-b0-field-v2`, explicitly recorded and checksum-verified in `deployment_artifacts/selected_model.json`. This is a newly trained EfficientNet-B0 with 38 classes and architecture-specific 224px RGB preprocessing, not a renamed downloaded classifier. It was selected after a corrected field-focused evaluation. Earlier v1 EfficientNet reports had label-mapping and split limitations; those old JSON reports are not reliable promotion evidence.
 
-- Architecture: torchvision EfficientNet-B0 transfer learning; 38 classes including healthy classes
-- Input: 224 × 224 RGB, ImageNet resize/crop and mean/std normalization
-- Dataset split: PlantVillage color, 43,447 train / 5,428 validation / 5,430 test; exact-byte duplicate groups stay in one split
-- Field check: 1,825 mapped PlantDoc train images / 183 held-out test images (unsupported labels excluded rather than forced)
-- PlantVillage validation: accuracy 87.29%, macro precision 82.58%, macro recall 86.68%, macro F1 83.36%
-- PlantVillage test: accuracy 86.96%, macro precision 81.98%, macro recall 86.17%, macro F1 83.12%
-- PlantDoc field test: accuracy 49.73%, macro precision 27.15%, macro recall 26.87%, macro F1 25.10%
-- Legacy CNN on the same PlantDoc field test: accuracy 12.02%, macro F1 7.20%
-- Weights size: 16,533,943 bytes (15.77 MiB)
-- Local one-thread CPU observation: approximately 150 ms per warmed inference; host memory is environment-dependent and must be rechecked on Render
-- Uncertainty threshold: 0.80 acceptance gate calibrated on PlantVillage validation confidence; not a disease-severity score or a validated leaf detector
+The experiment uses separate, grouped PlantVillage and PlantDoc training, validation and test data. PlantVillage validation/test accuracy: 97.11% / 97.79%; field validation/test: 70.71% / 65.25%. Field-test macro F1: 64.60%. The same corrected field labels give the legacy CNN 16.10% accuracy, although old training exposure is unknown. See [the evaluation audit](docs/EVALUATION_REVIEW.md) for exact split sizes, class-level reports, confusion matrices and limitations.
 
-Per-class metrics and confusion matrices are in `deployment_artifacts/validation_metrics.json`, `test_metrics.json` and `field_metrics.json`. The machine-readable manifest is `deployment_artifacts/model_manifest_efficientnet_b0.json`; the ordered mapping is `deployment_artifacts/class_names.json`. See [docs/MODEL_CARD.md](docs/MODEL_CARD.md) for dataset licences, limitations and the legacy comparison.
+The validation-fitted uncertainty gate accepts 36.02% of field test images at 85.88% accuracy: many images deliberately remain uncertain. It is not a validated leaf detector. Model size: 16,722,568 bytes. Separate CPU benchmark: median 289.40ms, p95 354.77ms, peak process RSS 340.57MiB; production memory needs separate verification. No class expansion was made; more labels without suitable data would not improve accuracy. The model is single-label; confidence is not severity.
 
 ## External APIs
 
@@ -147,7 +137,10 @@ All application endpoints except registration, login and refresh require a Beare
 | GET | `/api/plant_doctor_ai/plants/` | Internal model registry, not visible navigation |
 | GET | `/api/plant_doctor_ai/mandi/` | Live mandi filters/sorting/pagination |
 | GET | `/api/plant_doctor_ai/mandi/history/` | Stored comparable observations |
+| GET | `/api/plant_doctor_ai/mandi/options/` | Region-scoped suggestions from observed records |
+| POST | `/api/plant_doctor_ai/commodity-images/` | Bounded, attributed image lookup by commodity names |
 | GET | `/api/plant_doctor_ai/weather/` | City or coordinate forecast |
+| GET | `/api/plant_doctor_ai/weather/locations/` | Selectable city/region geocoding matches |
 | POST | `/api/plant_doctor_ai/risk/` | Owned cached-weather risk |
 | GET / POST | `/api/plant_doctor_ai/watchlist/` | Private watchlist |
 | DELETE | `/api/plant_doctor_ai/watchlist/{id}/` | Delete owned item |
@@ -184,5 +177,5 @@ Current URL: <https://shikhar-plantdoc.onrender.com>
 
 ## Attribution and limitations
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The model has been upgraded and measured, but PlantDoc field performance remains materially lower than laboratory-style PlantVillage performance. Unsupported crops, non-leaf images and serious crop problems still require a clearer image or an agricultural expert; future work should add a separately validated leaf/OOD detector and more representative regional field data.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [the model audit](docs/EVALUATION_REVIEW.md). The selected model improves the measured field comparison, but is not a universal or guaranteed diagnosis system. Unsupported crops, non-leaf images and serious crop problems require expert review. Future work needs a separately validated leaf/OOD detector and representative regional field data.
 

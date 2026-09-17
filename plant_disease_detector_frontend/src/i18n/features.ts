@@ -1,5 +1,6 @@
 export const featureTranslations = {
   "en": {
+    "recommendedActions": "Recommended actions",
     "camera": "Use camera",
     "analysisSaved": "Analysis saved",
     "photoTips": "For a useful result",
@@ -70,6 +71,7 @@ export const featureTranslations = {
     "singleLabelLimit": "The current classifier predicts one of 38 classes and is not a multi-disease detector.", "confidenceLimit": "Softmax confidence does not prove that an image is a supported leaf.", "severityLimit": "Confidence is not disease severity; weather risk is reported separately."
   },
   "hi": {
+    "recommendedActions": "सुझाए गए कदम",
     "camera": "कैमरा इस्तेमाल करें",
     "analysisSaved": "विश्लेषण सहेजा गया",
     "photoTips": "For a useful result",

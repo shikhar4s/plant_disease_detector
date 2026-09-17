@@ -1,0 +1,29 @@
+{
+  "environment": "Windows CPU, torch 2.7.1+cpu, one thread, inference_mode, batch 1, preprocessing included",
+  "samples": 30,
+  "median_ms": 289.40145000524353,
+  "p95_ms": 354.7721999930218,
+  "peak_process_rss_bytes": 357113856,
+  "current_rss_bytes": 353640448,
+  "ood_smoke_only": {
+    "provided_nonleaf_portrait": {
+      "label": "Peach___healthy",
+      "confidence": 0.3850305378437042,
+      "similarity": 0.23035135865211487,
+      "accepted": false
+    },
+    "solid_green": {
+      "label": "Corn_(maize)___healthy",
+      "confidence": 0.047199249267578125,
+      "similarity": 0.0978860929608345,
+      "accepted": false
+    },
+    "random_noise": {
+      "label": "Corn_(maize)___healthy",
+      "confidence": 0.19256383180618286,
+      "similarity": 0.2301832139492035,
+      "accepted": false
+    }
+  },
+  "limitations": "Only three non-leaf smoke inputs; not an OOD accuracy evaluation. Local process memory is not Render peak memory."
+}

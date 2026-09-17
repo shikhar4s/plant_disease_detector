@@ -62,13 +62,6 @@ export interface CommodityImagesResponse {
   images: Record<string, CommodityImage | null>;
   source: { name: string; url: string };
 }
-export interface CommodityImage {
-  thumbnail_url: string; source_page: string; title: string; artist: string;
-  license: string; license_url: string; provider: string;
-}
-export interface CommodityImagesResponse {
-  images: Record<string, CommodityImage | null>; provider: string; partial: boolean;
-}
 export interface MandiHistory {
   status: 'available' | 'collecting' | 'unavailable'; message: string;
   points: { date: string; modal_price: number; unit: string }[];

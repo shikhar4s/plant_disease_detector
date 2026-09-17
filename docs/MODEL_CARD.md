@@ -1,32 +1,10 @@
 # PlantDoc model card
 
-## Active model
+## Selected model and audit
 
-- Version: `efficientnet-b0-pv38-plantdoc-v1`
-- Architecture: torchvision EfficientNet-B0 transfer learning with a 38-way head
-- Weights: `deployment_artifacts/plant_disease_model_efficientnet_b0.pth` (16,533,943 bytes / 15.77 MiB)
-- Input: 224 × 224 RGB; EfficientNet resize/crop; ImageNet mean/std normalisation
-- Output: one class only. The model is not multilabel and cannot claim simultaneous diseases.
-- Uncertainty rule: top confidence below 0.80 is shown as uncertain. This threshold is calibrated against PlantVillage validation confidence; it is not a validated leaf detector and is not disease severity.
+Selection is explicit in `deployment_artifacts/selected_model.json`, with a SHA256 check before loading. The selected model is `efficientnet-b0-field-v2`: 38 classes, 224px RGB, resize short edge 256 and center crop, ImageNet normalization. No silent architecture fallback is allowed.
 
-The authoritative machine-readable version is `deployment_artifacts/model_manifest_efficientnet_b0.json`; the ordered class mapping is `deployment_artifacts/class_names.json`.
-
-## Measured runtime
-
-On the local Windows CPU environment (Python 3.12, PyTorch 2.7.1, one Torch thread), a warmed single-image benchmark was approximately 150 ms per inference. This is a local observation; Render memory and latency must be checked after deployment. The service keeps a legacy-CNN fallback if the candidate artifact is absent.
-
-## Accuracy and generalisation
-
-PlantVillage color split (38 classes): 43,447 train / 5,428 validation / 5,430 held-out test. Exact-byte duplicate groups were kept in one split. PlantDoc contributed 1,825 mapped training images and 183 held-out field images; incompatible labels were excluded rather than silently remapped.
-
-| Evaluation | Accuracy | Macro precision | Macro recall | Macro F1 |
-| --- | ---: | ---: | ---: | ---: |
-| PlantVillage validation | 87.29% | 82.58% | 86.68% | 83.36% |
-| PlantVillage test | 86.96% | 81.98% | 86.17% | 83.12% |
-| PlantDoc field test | 49.73% | 27.15% | 26.87% | 25.10% |
-| Legacy CNN, same field test | 12.02% | 9.22% | 7.50% | 7.20% |
-
-Per-class reports and confusion matrices are stored in `validation_metrics.json`, `test_metrics.json` and `field_metrics.json`. The field score is substantially better than the legacy baseline but still demonstrates domain shift; the UI therefore preserves conservative uncertainty messaging and the agricultural disclaimer.
+The previous v1 EfficientNet release did not deploy, and its old reports had label-mapping and duplicate-grouping limitations. Its claimed calibrated threshold and independent phone-image accuracy are withdrawn. See [EVALUATION_REVIEW.md](EVALUATION_REVIEW.md) for all measured v2 results, split sizes, runtime and acceptance/rejection limitations. Old v1 metric JSON files are historical artifacts, not evidence for promotion. The new model weights are released under CC BY-SA 3.0 with attribution to PlantVillage (Mohanty, Hughes and Salathé) and PlantDoc (Singh et al.); PyTorch/torchvision retain their own licences.
 
 ## Required replacement protocol
 

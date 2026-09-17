@@ -1,4 +1,5 @@
 import os
+import json
 
 from django.contrib import admin
 from django.db import connection
@@ -12,12 +13,15 @@ def health(request):
     try:
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
-        if not (settings.BASE_DIR / 'deployment_artifacts' / 'plant_disease_model.pth').is_file():
+        root = settings.BASE_DIR / 'deployment_artifacts'
+        selected = json.loads((root / 'selected_model.json').read_text(encoding='utf-8'))
+        if not (root / selected['filename']).is_file():
             return JsonResponse({'status': 'unavailable'}, status=503)
     except Exception:
         return JsonResponse({'status': 'unavailable'}, status=503)
     return JsonResponse({
         'status': 'ok',
+        'model_version': selected['model_version'],
         'integrations': {
             'gemini': {
                 'configured': bool(os.getenv('GEMINI_API_KEY', '').strip()),

@@ -88,7 +88,7 @@ export default function HistorySection() {
               <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-500">Preview unavailable</div>}
             <div className="p-5 space-y-3">
               <p className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</p>
-              <h2 className="font-semibold text-gray-800">{item.disease}</h2>
+              <h2 className="font-semibold text-gray-800">{item.prediction_status === 'uncertain' ? t('features.uncertainMessage') : item.disease}</h2>
               <p className="text-sm text-green-700">{t('features.' + item.prediction_status)} · {(item.confidence * 100).toFixed(1)}%</p>
               <div className="flex justify-between gap-3">
                 <button onClick={() => { setModal(item); setSelectedImage(item); }} className="text-green-700 font-medium">{t('features.viewResult')}</button>
@@ -106,3 +106,4 @@ export default function HistorySection() {
     {modal && <ResultModal image={modal} isOpen onClose={() => setModal(null)} onUpdate={update} />}
   </div>;
 }
+

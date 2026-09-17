@@ -21,12 +21,12 @@ from .services.care_guide import language_code
 from .services.gemini_service import gemini_service
 from .services.model_service import model_service, class_names, display_name, model_manifest
 from .services.disease_registry import split_label
-from .services.mandi_service import search_mandi, MandiProviderError
+from .services.mandi_service import search_mandi, mandi_options, MandiProviderError
+from .services.market_history_service import market_history
 from .services.commodity_image_service import resolve_commodity_images
-from .services.weather_service import weather, WeatherProviderError
+from .services.weather_service import weather, search_locations, WeatherProviderError
 from .services.risk_service import weather_risk
 from .services.context_store import load_context
-from .services.commodity_image_service import resolve_commodity_images
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class AnalyzePlantView(APIView):
             logger.exception('Plant model inference failed')
             return Response({'error': 'Analysis is temporarily unavailable. Please try again shortly.'},
                             status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        guidance = gemini_service.get_treatment_info(prediction['disease'], language, prediction['confidence'] < 0.7)
+        guidance = gemini_service.get_treatment_info(prediction['disease'], language, prediction['status'] == 'uncertain')
         crop, condition = split_label(prediction['disease'])
         with transaction.atomic():
             analysis = AnalysisResult.objects.create(
@@ -68,11 +68,11 @@ def history_queryset(request):
         queryset = queryset.filter(Q(disease_name__icontains=query.replace(' ', '_')) | Q(notes__icontains=query))
     result_status = request.query_params.get('status')
     if result_status == 'uncertain':
-        queryset = queryset.filter(confidence__lt=0.7)
+        queryset = queryset.filter(Q(status='uncertain') | Q(status='', confidence__lt=0.7))
     elif result_status == 'healthy':
-        queryset = queryset.filter(confidence__gte=0.7, disease_name__iendswith='___healthy')
+        queryset = queryset.filter(Q(status='healthy') | Q(status='', confidence__gte=0.7, disease_name__iendswith='___healthy'))
     elif result_status == 'possible_disease':
-        queryset = queryset.filter(confidence__gte=0.7).exclude(disease_name__iendswith='___healthy')
+        queryset = queryset.filter(Q(status='possible_disease') | (Q(status='', confidence__gte=0.7) & ~Q(disease_name__iendswith='___healthy')))
     return queryset
 
 
@@ -160,31 +160,23 @@ class MandiRatesView(APIView):
 
 
 class MandiHistoryView(APIView):
+    throttle_scope = 'market'
+
     def get(self, request):
-        commodity = request.query_params.get('commodity', '').strip()[:160]
-        variety = request.query_params.get('variety', '').strip()[:160]
-        market = request.query_params.get('market', '').strip()[:160]
-        state = request.query_params.get('state', '').strip()[:120]
-        district = request.query_params.get('district', '').strip()[:120]
         try:
-            days = min(90, max(7, int(request.query_params.get('days', 30))))
-        except (TypeError, ValueError):
-            return Response({'error': 'Days must be a whole number from 7 to 90.'}, status=400)
-        if not (commodity and variety and market and state and district):
-            return Response({'status': 'unavailable',
-                'message': 'Select a commodity, variety, market, district and state for comparable history.', 'points': []})
-        query = MandiSnapshot.objects.filter(commodity__iexact=commodity, variety__iexact=variety,
-            market__iexact=market, state__iexact=state, district__iexact=district,
-            price_date__gte=timezone.localdate() - timedelta(days=days))
-        points = [{'date': item.price_date.isoformat(), 'modal_price': float(item.modal_price), 'unit': item.unit}
-                  for item in query.order_by('price_date') if item.modal_price is not None]
-        status_value = 'available' if len(points) >= 2 else 'collecting'
-        change = None
-        if len(points) >= 2 and points[0]['modal_price']:
-            change = round((points[-1]['modal_price'] - points[0]['modal_price']) / points[0]['modal_price'] * 100, 2)
-        return Response({'status': status_value, 'message': 'Historical data unavailable' if not points else
-            'Collecting history' if len(points) < 2 else '', 'points': points, 'percentage_change': change,
-            'scope': 'Same commodity, variety, market, district, state and source unit; stored observations only.'})
+            return Response(market_history(request.query_params))
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=400)
+
+
+class MandiOptionsView(APIView):
+    throttle_scope = 'market'
+
+    def get(self, request):
+        try:
+            return Response(mandi_options(request.query_params))
+        except MandiProviderError as exc:
+            return Response({'error': str(exc), 'source': 'AGMARKNET via data.gov.in'}, status=503)
 
 
 class CommodityImagesView(APIView):
@@ -199,7 +191,9 @@ class CommodityImagesView(APIView):
 
     def get(self, request):
         raw = request.query_params.get('commodities', '')
-        commodities = [item.strip() for item in raw.split(',') if item.strip()][:30]
+        commodities = [item.strip() for item in raw.split(',') if item.strip()]
+        if len(commodities) > 30 or any(len(name) > 160 for name in commodities):
+            return Response({'error': 'Request up to 30 commodity names, each at most 160 characters.'}, status=400)
         return Response({'images': resolve_commodity_images(commodities),
                          'source': {'name': 'Wikimedia Commons', 'url': 'https://commons.wikimedia.org/'}})
 
@@ -211,8 +205,21 @@ class WeatherView(APIView):
         try:
             result = weather(request.user.id, city=request.query_params.get('city', ''),
                 latitude=request.query_params.get('latitude'), longitude=request.query_params.get('longitude'),
+                location_id=request.query_params.get('location_id'),
                 language=request.headers.get('Language', 'en'))
             return Response(result)
+        except WeatherProviderError as exc:
+            code = 400 if str(exc).startswith(('Enter', 'Invalid', 'No matching')) else 503
+            return Response({'error': str(exc), 'source': 'Open-Meteo'}, status=code)
+
+
+class WeatherLocationsView(APIView):
+    throttle_scope = 'weather'
+
+    def get(self, request):
+        try:
+            return Response(search_locations(request.query_params.get('q', ''),
+                language=request.headers.get('Language', 'en')))
         except WeatherProviderError as exc:
             code = 400 if str(exc).startswith(('Enter', 'Invalid', 'No matching')) else 503
             return Response({'error': str(exc), 'source': 'Open-Meteo'}, status=code)

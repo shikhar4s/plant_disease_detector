@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "model_version": "efficientnet-b0-field-v2",
+  "architecture": "torchvision EfficientNet-B0 transfer learning",
+  "class_mapping": "class_names.json",
+  "class_count": 38,
+  "uncertainty_threshold": 0.825,
+  "similarity_threshold": 0.4,
+  "temperature": 1.0364943742752075,
+  "threshold_status": "Temperature and acceptance thresholds fitted on 437 field validation images. Not a validated leaf detector.",
+  "input": {"width": 224, "height": 224, "color": "RGB", "resize_short_edge": 256, "crop": "center", "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]},
+  "weights_sha256": "1324ac6fae2e3e729ee8736259405f12a4ab4e35664e38ace121b6aea51e0a76",
+  "weights_size_bytes": 16722568,
+  "evaluation_report": "field_v2_evaluation.json",
+  "runtime_report": "field_v2_runtime.json",
+  "limitations": [
+    "Single-label 38-class classifier; no simultaneous-disease or severity prediction.",
+    "Field test accuracy 65.25%; accepted predictions 85.88% accuracy at 36.02% coverage.",
+    "Only three non-leaf smoke inputs tested; this is not validated open-world plant identification.",
+    "Unsupported crops and heavily transformed duplicates remain limitations.",
+    "Local CPU memory is not production hosting peak memory."
+  ]
+}
+
