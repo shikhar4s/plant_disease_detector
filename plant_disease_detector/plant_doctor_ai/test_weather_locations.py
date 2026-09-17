@@ -43,3 +43,18 @@ class WeatherLocationTests(SimpleTestCase):
     def test_city_not_found_is_an_empty_list(self, request):
         self.assertEqual(search_locations('Unknown')['locations'], [])
 
+    @patch('plant_doctor_ai.services.weather_service.store_context', return_value='owned-context')
+    @patch('plant_doctor_ai.services.weather_service._met_forecast')
+    @patch('plant_doctor_ai.services.weather_service._request')
+    def test_rate_limited_forecast_uses_attributed_fallback(self, request, met, context):
+        request.side_effect = WeatherProviderError('rate limited', status_code=429)
+        met.return_value = ({'current': {'temperature_2m': 25}, 'forecast': [
+            {'date': '2026-09-17', 'precipitation_probability_max': None}],
+            'current_units': {}, 'daily_units': {}, 'timezone': 'UTC',
+            'source': {'name': 'MET Norway (forecast fallback)', 'url': 'https://api.met.no/'}}, False)
+        result = weather(17, latitude=22.7179, longitude=75.8333)
+        self.assertEqual(result['source']['name'], 'MET Norway (forecast fallback)')
+        self.assertIsNone(result['forecast'][0]['precipitation_probability_max'])
+        self.assertEqual(met.call_args.args, (22.7179, 75.8333, 'UTC'))
+        self.assertEqual(result['context_id'], 'owned-context')
+

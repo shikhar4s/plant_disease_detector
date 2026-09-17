@@ -7,10 +7,12 @@ import { usePlantData } from '../../contexts/PlantDataContext';
 type WeatherLocation = { id: number; name: string; state: string; district: string; country: string };
 type LocationResults = { locations: WeatherLocation[] };
 const locationLabel = (location: WeatherLocation) => [location.name, location.district, location.state, location.country].filter((part, index, parts) => part && parts.indexOf(part) === index).join(', ');
-const weatherLabel = (code: number, hi: boolean) => {
+const weatherLabel = (code: number | null, hi: boolean) => {
+  if (code === null || !Number.isFinite(code)) return hi ? 'उपलब्ध नहीं' : 'Unavailable';
   const labels = hi ? ['साफ़', 'आंशिक बादल', 'कोहरा', 'बारिश', 'बर्फ़', 'बारिश की बौछारें', 'बर्फ़ की बौछारें', 'आंधी-तूफ़ान'] : ['Clear', 'Partly cloudy', 'Fog', 'Rain', 'Snow', 'Rain showers', 'Snow showers', 'Thunderstorm'];
   return labels[code === 0 ? 0 : code <= 3 ? 1 : code <= 48 ? 2 : code <= 67 ? 3 : code <= 77 ? 4 : code <= 82 ? 5 : code <= 86 ? 6 : 7];
 };
+const measure = (value: number | string | null | undefined, unit: string) => typeof value === 'number' && Number.isFinite(value) ? `${value}${unit}` : '—';
 
 export default function WeatherPage() {
   const { t, i18n } = useTranslation();
@@ -136,14 +138,14 @@ export default function WeatherPage() {
     </form>
     {(loading || locating) && <div className="panel" role="status">{locating ? (hi ? 'आपका स्थान ढूँढ रहे हैं…' : 'Finding your location…') : t('features.loading')}</div>}{error && <div className="error-panel" role="alert">{error}</div>}
     {data && <><section className="panel"><div className="flex flex-wrap justify-between gap-4"><div><p className="eyebrow">{data.location.name}, {data.location.state} {data.location.country}</p>
-      <h2 className="text-5xl font-bold">{data.current.temperature_2m}°</h2><p>{weatherLabel(data.current.weather_code, hi)}</p></div>
-      <dl className="grid grid-cols-2 md:grid-cols-3 gap-5 text-sm"><div><dt>{t('features.feelsLike')}</dt><dd>{data.current.apparent_temperature}°C</dd></div>
-        <div><dt>{t('features.humidity')}</dt><dd>{data.current.relative_humidity_2m}%</dd></div><div><dt>{t('features.precipitation')}</dt><dd>{data.current.precipitation} mm</dd></div>
-        <div><dt>{t('features.wind')}</dt><dd>{data.current.wind_speed_10m} km/h</dd></div><div><dt>{t('features.timezone')}</dt><dd>{data.location.timezone}</dd></div></dl></div></section>
+      <h2 className="text-5xl font-bold">{measure(data.current.temperature_2m, '°')}</h2><p>{weatherLabel(typeof data.current.weather_code === 'number' ? data.current.weather_code : null, hi)}</p></div>
+      <dl className="grid grid-cols-2 md:grid-cols-3 gap-5 text-sm"><div><dt>{t('features.feelsLike')}</dt><dd>{measure(data.current.apparent_temperature, '°C')}</dd></div>
+        <div><dt>{t('features.humidity')}</dt><dd>{measure(data.current.relative_humidity_2m, '%')}</dd></div><div><dt>{data.source.name.startsWith('MET Norway') ? (hi ? 'अगले घंटे का वर्षा पूर्वानुमान' : 'Next-hour precipitation forecast') : t('features.precipitation')}</dt><dd>{measure(data.current.precipitation, ' mm')}</dd></div>
+        <div><dt>{t('features.wind')}</dt><dd>{measure(data.current.wind_speed_10m, ' km/h')}</dd></div><div><dt>{t('features.timezone')}</dt><dd>{data.location.timezone}</dd></div></dl></div></section>
       <section><h2 className="section-title mb-3">{t('features.sevenDayForecast')}</h2><div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
         {data.forecast.map(day => <article key={String(day.date)} className="panel p-4"><h3 className="font-semibold">{new Date(String(day.date) + 'T12:00').toLocaleDateString(i18n.language, { weekday: 'short' })}</h3>
-          <p className="text-sm">{weatherLabel(Number(day.weather_code), hi)}</p><p className="mt-2 font-semibold">{day.temperature_2m_max}° / {day.temperature_2m_min}°</p>
-          <p className="text-sm text-blue-700">{t('features.rain')}: {day.precipitation_probability_max}%</p></article>)}</div></section>
+          <p className="text-sm">{weatherLabel(typeof day.weather_code === 'number' ? day.weather_code : null, hi)}</p><p className="mt-2 font-semibold">{measure(day.temperature_2m_max, '°')} / {measure(day.temperature_2m_min, '°')}</p>
+          <p className="text-sm text-blue-700">{day.precipitation_probability_max != null ? `${t('features.rain')}: ${measure(day.precipitation_probability_max, '%')}` : day.precipitation_sum != null ? `${hi ? 'अनुमानित वर्षा' : 'Forecast precipitation'}: ${measure(day.precipitation_sum, ' mm')}` : (hi ? 'वर्षा की संभावना उपलब्ध नहीं' : 'Rain probability unavailable')}</p></article>)}</div></section>
       <section className="panel"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="section-title">{t('features.diseaseRisk')}</h2><p className="text-sm text-gray-600">{t('features.riskSeparate')}</p></div>
         <button disabled={riskLoading} onClick={() => void calculateRisk()} className="primary-button disabled:opacity-50">{riskLoading ? t('features.loading') : t('features.calculateRisk')}</button></div>
         {risk && <div className="mt-4"><p className={`risk-badge risk-${risk.level.toLowerCase()}`}>{risk.level_label || t('features.' + risk.level.toLowerCase())}</p>
@@ -151,7 +153,7 @@ export default function WeatherPage() {
           {!!risk.references?.length && <p className="text-xs mt-2">{risk.references.map((reference, index) => <span key={reference.url}>{index > 0 && ' · '}<a className="underline" href={reference.url} target="_blank" rel="noreferrer">{reference.title}</a></span>)}</p>}</div>}</section>
       <section className="panel"><h2 className="section-title">{t('features.farmGuidance')}</h2><ul className="list-disc pl-5 mt-3 space-y-2">
         <li>{t('features.rainGuidance')}</li><li>{t('features.humidityGuidance')}</li><li>{t('features.heatGuidance')}</li><li>{t('features.soilGuidance')}</li></ul></section>
-      <p className="text-sm text-gray-600">{data.source.name} · {new Date(data.fetched_at).toLocaleString()} · {data.location.timezone}</p></>}
+      <p className="text-sm text-gray-600"><a className="underline" href={data.source.url} target="_blank" rel="noreferrer">{data.source.name}</a> · {new Date(data.fetched_at).toLocaleString()} · {data.location.timezone}{data.source.license && <> · <a className="underline" href={data.source.license} target="_blank" rel="noreferrer">CC BY 4.0</a></>}{data.source.name.startsWith('MET Norway') && <> · {hi ? 'पूर्वानुमान अवधि के अनुसार वर्षा का योग; संभावना उपलब्ध नहीं' : 'Precipitation summed by forecast period; probability unavailable'}</>}</p></>}
   </div>;
 }
 
