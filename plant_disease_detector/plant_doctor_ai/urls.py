@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (AnalyzePlantView, AnalysisHistoryView, AnalysisDetailView, ExportHistoryView,
                     AnalyticsDashboardView, ChatbotView, SupportedPlantsView, MandiRatesView, CommodityImagesView,
-                    MandiHistoryView, MandiOptionsView, WeatherLocationsView, WeatherView, WeatherRiskView, WatchlistView, WatchlistDetailView)
+                    MandiHistoryView, MandiOptionsView, WeatherLocationsView, WeatherCatalogView, WeatherView, WeatherRiskView, WatchlistView, WatchlistDetailView)
 urlpatterns = [
     path('analyze/', AnalyzePlantView.as_view(), name='analyze-plant'),
     path('history/', AnalysisHistoryView.as_view(), name='analysis-history'),
@@ -17,8 +17,8 @@ urlpatterns = [
     path('commodity-images/', CommodityImagesView.as_view(), name='commodity-images'),
     path('weather/', WeatherView.as_view(), name='weather'),
     path('weather/locations/', WeatherLocationsView.as_view(), name='weather-locations'),
+    path('weather/catalog/', WeatherCatalogView.as_view(), name='weather-catalog'),
     path('risk/', WeatherRiskView.as_view(), name='weather-risk'),
     path('watchlist/', WatchlistView.as_view(), name='watchlist'),
     path('watchlist/<int:pk>/', WatchlistDetailView.as_view(), name='watchlist-detail'),
 ]
-

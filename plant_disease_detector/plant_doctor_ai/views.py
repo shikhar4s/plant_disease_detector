@@ -225,6 +225,20 @@ class WeatherLocationsView(APIView):
             return Response({'error': str(exc), 'source': 'Open-Meteo'}, status=code)
 
 
+class WeatherCatalogView(APIView):
+    throttle_scope = 'weather'
+
+    def get(self, request):
+        from .services.india_location_service import list_cities, list_states
+        state = request.query_params.get('state')
+        if state is None:
+            return Response(list_states())
+        try:
+            return Response(list_cities(state))
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=400)
+
+
 class WeatherRiskView(APIView):
     def post(self, request):
         context = load_context(request.user.id, 'weather', str(request.data.get('weatherContextId', '')))
@@ -266,4 +280,3 @@ class ChatbotView(APIView):
         mandi_context = load_context(request.user.id, 'mandi', data.get('mandiContextId'))
         return Response(gemini_service.process_chat(data['history'], data['newMessage'],
             language=request.headers.get('Language'), analysis=analysis, weather=weather_context, mandi=mandi_context))
-

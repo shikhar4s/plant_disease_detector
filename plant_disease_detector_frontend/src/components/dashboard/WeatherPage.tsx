@@ -4,10 +4,10 @@ import { api, messageOf } from '../../lib/api';
 import type { RiskData, WeatherData } from '../../lib/types';
 import { usePlantData } from '../../contexts/PlantDataContext';
 
-type WeatherLocation = { id: number; name: string; state: string; district: string; country: string; country_code: string };
-type LocationResults = { locations: WeatherLocation[] };
-const locationLabel = (location: WeatherLocation) => [location.name, location.district, location.state, location.country].filter((part, index, parts) => part && parts.indexOf(part) === index).join(', ');
-const regionKey = (location: WeatherLocation) => JSON.stringify([location.country_code || location.country, location.state]);
+type WeatherState = { code: string; name: string; city_count: number };
+type WeatherCity = { id: number; name: string; district: string };
+type StateResults = { states: WeatherState[]; source: string; source_url: string; fetched_at: string; coverage: string };
+type CityResults = { cities: WeatherCity[] };
 const weatherLabel = (code: number | null, hi: boolean) => {
   if (code === null || !Number.isFinite(code)) return hi ? 'उपलब्ध नहीं' : 'Unavailable';
   const labels = hi ? ['साफ़', 'आंशिक बादल', 'कोहरा', 'बारिश', 'बर्फ़', 'बारिश की बौछारें', 'बर्फ़ की बौछारें', 'आंधी-तूफ़ान'] : ['Clear', 'Partly cloudy', 'Fog', 'Rain', 'Snow', 'Rain showers', 'Snow showers', 'Thunderstorm'];
@@ -19,21 +19,20 @@ export default function WeatherPage() {
   const { t, i18n } = useTranslation();
   const hi = i18n.language.startsWith('hi');
   const { selectedImage, setWeatherContextId } = usePlantData();
-  const [city, setCity] = useState(''); const [data, setData] = useState<WeatherData | null>(null);
+  const [data, setData] = useState<WeatherData | null>(null);
   const [risk, setRisk] = useState<RiskData | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState('');
-  const [locations, setLocations] = useState<WeatherLocation[]>([]);
+  const [states, setStates] = useState<WeatherState[]>([]);
+  const [cities, setCities] = useState<WeatherCity[]>([]);
+  const [catalog, setCatalog] = useState<StateResults | null>(null);
+  const [statesLoading, setStatesLoading] = useState(true);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState('');
-  const [searched, setSearched] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
   const weatherRequest = useRef<AbortController | null>(null);
   const riskRequest = useRef<AbortController | null>(null);
   const locationRequest = useRef<AbortController | null>(null);
-  const query = city.trim();
-  const regions = Array.from(new Map(locations.map(location => [regionKey(location), location])).entries());
-  const matchingLocations = locations.filter(location => regionKey(location) === selectedRegion);
 
   useEffect(() => {
     riskRequest.current?.abort();
@@ -41,36 +40,40 @@ export default function WeatherPage() {
     setRiskLoading(false);
   }, [i18n.language, selectedImage?.id]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    void api<StateResults>('/api/plant_doctor_ai/weather/catalog/', { signal: controller.signal })
+      .then(result => { if (!controller.signal.aborted) { setStates(result.states); setCatalog(result); } })
+      .catch(cause => { if (!controller.signal.aborted) setCatalogError(messageOf(cause)); })
+      .finally(() => { if (!controller.signal.aborted) setStatesLoading(false); });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    locationRequest.current?.abort();
+    if (!selectedRegion) return;
+    const controller = new AbortController();
+    locationRequest.current = controller;
+    setCitiesLoading(true);
+    setCatalogError('');
+    void api<CityResults>('/api/plant_doctor_ai/weather/catalog/?state=' + encodeURIComponent(selectedRegion), { signal: controller.signal })
+      .then(result => { if (!controller.signal.aborted) setCities(result.cities); })
+      .catch(cause => { if (!controller.signal.aborted) setCatalogError(messageOf(cause)); })
+      .finally(() => { if (!controller.signal.aborted) setCitiesLoading(false); });
+    return () => controller.abort();
+  }, [selectedRegion]);
+
   useEffect(() => () => {
     weatherRequest.current?.abort();
     riskRequest.current?.abort();
     locationRequest.current?.abort();
   }, []);
 
-  async function findLocations() {
-    locationRequest.current?.abort();
-    setSelectedRegion(''); setSelectedLocation(''); setLocations([]); setSearched(false);
-    if (query.length < 2) {
-      setLocationError(hi ? 'शहर का नाम कम से कम 2 अक्षरों में लिखें।' : 'Enter at least 2 characters for the city.');
-      return;
-    }
-    const controller = new AbortController();
-    locationRequest.current = controller;
-    setLocationLoading(true);
-    setLocationError('');
-    try {
-      const result = await api<LocationResults>('/api/plant_doctor_ai/weather/locations/?q=' + encodeURIComponent(query), {
-        signal: controller.signal, headers: { Language: i18n.language },
-      });
-      if (!controller.signal.aborted) {
-        setLocations(result.locations);
-        setSearched(true);
-      }
-    } catch (cause) {
-      if (!controller.signal.aborted) setLocationError(messageOf(cause));
-    } finally {
-      if (!controller.signal.aborted) setLocationLoading(false);
-    }
+  function clearWeather() {
+    weatherRequest.current?.abort();
+    riskRequest.current?.abort();
+    setLoading(false); setRiskLoading(false); setError('');
+    setData(null); setRisk(null); setWeatherContextId('');
   }
 
   async function load(path: string) {
@@ -106,34 +109,30 @@ export default function WeatherPage() {
     <form onSubmit={event => {
       event.preventDefault();
       if (selectedLocation) void load('/api/plant_doctor_ai/weather/?location_id=' + encodeURIComponent(selectedLocation));
-      else void findLocations();
     }} className="panel space-y-4">
-      <div className="grid md:grid-cols-3 gap-4">
-        <label className="field-label">{t('features.city')}<input className="field" value={city} maxLength={120} autoComplete="off"
-          placeholder={hi ? 'जैसे Indore, Bhopal या Delhi' : 'e.g. Indore, Bhopal or Delhi'} aria-describedby="location-search-help"
-          onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void findLocations(); } }}
-          onChange={event => { locationRequest.current?.abort(); weatherRequest.current?.abort(); riskRequest.current?.abort(); setCity(event.target.value); setSelectedRegion(''); setSelectedLocation(''); setLocations([]); setSearched(false); setLocationLoading(false); setLoading(false); setRiskLoading(false); setLocationError(''); setError(''); setData(null); setRisk(null); setWeatherContextId(''); }} /></label>
+      <div className="grid md:grid-cols-2 gap-4">
         <label className="field-label">{hi ? 'राज्य / क्षेत्र' : 'State / region'}
-          <select className="field" value={selectedRegion} disabled={!regions.length || locationLoading} onChange={event => { setSelectedRegion(event.target.value); setSelectedLocation(''); }}>
-            <option value="">{hi ? 'क्षेत्र चुनें' : 'Choose a region'}</option>
-            {regions.map(([key, location]) => <option key={key} value={key}>{location.state || (hi ? 'क्षेत्र उपलब्ध नहीं' : 'Region unavailable')}</option>)}
+          <select className="field" value={selectedRegion} disabled={statesLoading || !states.length} onChange={event => {
+            locationRequest.current?.abort(); setSelectedRegion(event.target.value); setSelectedLocation(''); setCities([]); clearWeather();
+          }}>
+            <option value="">{hi ? 'राज्य या केंद्र शासित प्रदेश चुनें' : 'Choose a state or union territory'}</option>
+            {states.map(state => <option key={state.code} value={state.code}>{state.name} ({state.city_count})</option>)}
           </select>
         </label>
         <label className="field-label">{hi ? 'शहर / स्थान' : 'City / location'}
-          <select className="field" value={selectedLocation} disabled={!selectedRegion || locationLoading} onChange={event => setSelectedLocation(event.target.value)}>
-            <option value="">{hi ? 'स्थान चुनें' : 'Choose a location'}</option>
-            {matchingLocations.map(location => <option key={location.id} value={String(location.id)}>{locationLabel(location)}</option>)}
+          <select className="field" value={selectedLocation} disabled={!selectedRegion || citiesLoading || !cities.length} onChange={event => { setSelectedLocation(event.target.value); clearWeather(); }}>
+            <option value="">{hi ? 'शहर चुनें' : 'Choose a city'}</option>
+            {cities.map(city => <option key={city.id} value={String(city.id)}>{city.name}{city.district ? `, ${city.district}` : ''}</option>)}
           </select>
         </label>
       </div>
-      <p id="location-search-help" className="text-sm text-gray-600">{hi ? 'केवल भारतीय शहर उपलब्ध हैं। शहर का अंग्रेज़ी नाम लिखें, फिर सही राज्य और स्थान चुनें।' : 'Only Indian cities are available. Search by city name, then choose the correct state and location.'}</p>
       <div role="status" aria-live="polite" className="text-sm text-gray-600">
-        {locationLoading ? (hi ? 'स्थान खोज रहे हैं…' : 'Finding locations…') : searched && !locations.length ? (hi ? 'भारत में कोई स्थान नहीं मिला। अंग्रेज़ी वर्तनी या पास के शहर का नाम आज़माएँ।' : 'No matching Indian locations. Try an English spelling or a nearby city.') : locations.length > 0 ? (hi ? `${locations.length} स्थान मिले। सही राज्य और स्थान चुनें।` : `${locations.length} locations found in India. Choose the correct state and location.`) : ''}
+        {statesLoading ? (hi ? 'राज्य लोड हो रहे हैं…' : 'Loading states…') : citiesLoading ? (hi ? 'शहर लोड हो रहे हैं…' : 'Loading cities…') : selectedRegion ? (hi ? `${cities.length} उपलब्ध शहर और कस्बे।` : `${cities.length} available cities and towns.`) : (hi ? 'पहले राज्य चुनें, फिर शहर चुनें।' : 'Choose a state, then a city.')}
       </div>
-      {locationError && <p className="error-panel" role="alert">{locationError}</p>}
+      {catalogError && <p className="error-panel" role="alert">{catalogError}</p>}
+      {catalog && <p className="text-xs text-gray-600">{hi ? 'छोटे गाँव सूची में नहीं हो सकते। स्रोत:' : 'Smaller settlements may be absent. Source:'} <a className="underline" href={catalog.source_url} target="_blank" rel="noreferrer">{catalog.source}</a> (CC BY 4.0) · {catalog.fetched_at}</p>}
       <div className="flex flex-wrap gap-3">
-        <button type="button" disabled={locationLoading || loading} onClick={() => void findLocations()} className="secondary-button disabled:opacity-50">{hi ? 'शहर खोजें' : 'Find cities'}</button>
-        <button disabled={!selectedLocation || loading || locationLoading} className="primary-button disabled:opacity-50">{hi ? 'मौसम देखें' : 'Show weather'}</button>
+        <button disabled={!selectedLocation || loading || citiesLoading} className="primary-button disabled:opacity-50">{hi ? 'मौसम देखें' : 'Show weather'}</button>
       </div>
     </form>
     {loading && <div className="panel" role="status">{t('features.loading')}</div>}{error && <div className="error-panel" role="alert">{error}</div>}
@@ -156,4 +155,3 @@ export default function WeatherPage() {
       <p className="text-sm text-gray-600"><a className="underline" href={data.source.url} target="_blank" rel="noreferrer">{data.source.name}</a> · {new Date(data.fetched_at).toLocaleString()} · {data.location.timezone}{data.source.license && <> · <a className="underline" href={data.source.license} target="_blank" rel="noreferrer">CC BY 4.0</a></>}{data.source.name.startsWith('MET Norway') && <> · {hi ? 'पूर्वानुमान अवधि के अनुसार वर्षा का योग; संभावना उपलब्ध नहीं' : 'Precipitation summed by forecast period; probability unavailable'}</>}</p></>}
   </div>;
 }
-

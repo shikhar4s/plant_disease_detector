@@ -312,6 +312,17 @@ class PlantApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['source']['name'], 'Open-Meteo')
 
+    def test_weather_catalog_lists_states_then_cities_without_search(self):
+        states_response = self.client.get(API + 'weather/catalog/')
+        self.assertEqual(states_response.status_code, 200)
+        self.assertEqual(len(states_response.data['states']), 36)
+        state = next(item for item in states_response.data['states'] if item['name'] == 'Madhya Pradesh')
+        cities_response = self.client.get(API + 'weather/catalog/', {'state': state['code']})
+        self.assertEqual(cities_response.status_code, 200)
+        self.assertEqual(len(cities_response.data['cities']), state['city_count'])
+        self.assertTrue(any(item['name'] == 'Indore' for item in cities_response.data['cities']))
+        self.assertEqual(self.client.get(API + 'weather/catalog/', {'state': 'US'}).status_code, 400)
+
     def test_real_model_returns_finite_ranked_probabilities(self):
         result = model_service.predict(Image.new('RGB', (256, 256), (50, 130, 55)))
         self.assertIn(result['disease'], class_names())
@@ -348,4 +359,3 @@ class HealthCheckTests(TestCase):
         self.assertEqual(body['integrations']['gemini']['model'], 'gemini-3.6-flash')
         self.assertFalse(body['integrations']['mandi']['configured'])
         self.assertNotIn('never-return-this', str(body))
-

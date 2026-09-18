@@ -9,6 +9,7 @@ import requests
 from django.core.cache import cache
 from django.utils import timezone
 from .context_store import store_context
+from .india_location_service import get_city
 
 SOURCE = {'name': 'Open-Meteo', 'url': 'https://open-meteo.com/',
           'license': 'https://creativecommons.org/licenses/by/4.0/'}
@@ -205,8 +206,12 @@ def weather(user_id, *, city='', latitude=None, longitude=None, language='en', l
                 raise ValueError
         except (TypeError, ValueError) as exc:
             raise WeatherProviderError('Choose a valid location from the search results.') from exc
-        location, cached = _request('https://geocoding-api.open-meteo.com/v1/get',
-                                    {'id': identifier, 'language': language[:2], 'format': 'json'})
+        location = get_city(identifier)
+        if location is None:
+            location, cached = _request('https://geocoding-api.open-meteo.com/v1/get',
+                                        {'id': identifier, 'language': language[:2], 'format': 'json'})
+        else:
+            cached = True
         if location.get('country_code') != 'IN':
             raise WeatherProviderError('Weather is available only for locations in India.', status_code=400)
         latitude, longitude = _location_coordinates(location)
@@ -261,4 +266,3 @@ def weather(user_id, *, city='', latitude=None, longitude=None, language='en', l
     }
     result['context_id'] = store_context(user_id, 'weather', result, 900)
     return result
-
