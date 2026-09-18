@@ -30,9 +30,11 @@ export default function WeatherPage() {
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [riskLoading, setRiskLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const weatherRequest = useRef<AbortController | null>(null);
   const riskRequest = useRef<AbortController | null>(null);
   const locationRequest = useRef<AbortController | null>(null);
+  const geoAttempt = useRef(0);
 
   useEffect(() => {
     riskRequest.current?.abort();
@@ -64,29 +66,54 @@ export default function WeatherPage() {
   }, [selectedRegion]);
 
   useEffect(() => () => {
+    geoAttempt.current += 1;
     weatherRequest.current?.abort();
     riskRequest.current?.abort();
     locationRequest.current?.abort();
   }, []);
 
   function clearWeather() {
+    geoAttempt.current += 1;
     weatherRequest.current?.abort();
     riskRequest.current?.abort();
+    setLocating(false);
     setLoading(false); setRiskLoading(false); setError('');
     setData(null); setRisk(null); setWeatherContextId('');
   }
 
-  async function load(path: string) {
+  async function load(path: string, gps = false) {
     weatherRequest.current?.abort();
     riskRequest.current?.abort();
     const controller = new AbortController();
     weatherRequest.current = controller;
-    setLoading(true); setError(''); setRisk(null); setRiskLoading(false); setData(null); setWeatherContextId('');
+    setLoading(true); setLocating(false); setError(''); setRisk(null); setRiskLoading(false); setData(null); setWeatherContextId('');
     try {
       const result = await api<WeatherData>(path, { signal: controller.signal, headers: { Language: i18n.language } });
       if (!controller.signal.aborted) { setData(result); setWeatherContextId(result.context_id); }
-    } catch (cause) { if (!controller.signal.aborted) setError(messageOf(cause)); }
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        const message = messageOf(cause);
+        setError(gps && hi && message.includes('GPS location could not be confirmed inside India')
+          ? 'आपका स्थान भारत के भीतर सत्यापित नहीं हो सका। कृपया राज्य और शहर चुनें।' : message);
+      }
+    }
     finally { if (!controller.signal.aborted) setLoading(false); }
+  }
+  function geolocate() {
+    if (!navigator.geolocation) { setError(t('features.geolocationUnavailable')); return; }
+    clearWeather();
+    const attempt = ++geoAttempt.current;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(position => {
+      if (geoAttempt.current !== attempt) return;
+      void load('/api/plant_doctor_ai/weather/?' + new URLSearchParams({
+        latitude: String(position.coords.latitude), longitude: String(position.coords.longitude),
+      }), true);
+    }, cause => {
+      if (geoAttempt.current !== attempt) return;
+      setLocating(false);
+      setError(cause.code === 1 ? t('features.locationDenied') : (hi ? 'स्थान नहीं मिल सका। राज्य और शहर चुनें या फिर कोशिश करें।' : 'Could not find your location. Choose a state and city or retry.'));
+    }, { timeout: 10000, maximumAge: 300000 });
   }
   async function calculateRisk() {
     if (!data) return;
@@ -133,10 +160,12 @@ export default function WeatherPage() {
       {catalog && <p className="text-xs text-gray-600">{hi ? 'छोटे गाँव सूची में नहीं हो सकते। स्रोत:' : 'Smaller settlements may be absent. Source:'} <a className="underline" href={catalog.source_url} target="_blank" rel="noreferrer">{catalog.source}</a> (CC BY 4.0) · {catalog.fetched_at}</p>}
       <div className="flex flex-wrap gap-3">
         <button disabled={!selectedLocation || loading || citiesLoading} className="primary-button disabled:opacity-50">{hi ? 'मौसम देखें' : 'Show weather'}</button>
+        <button type="button" disabled={locating || loading} onClick={geolocate} className="secondary-button disabled:opacity-50">{t('features.useLocation')}</button>
       </div>
+      <p className="text-xs text-gray-600">{hi ? 'केवल बटन दबाने पर GPS स्थान साझा होगा। सीमावर्ती स्थानों की जाँच OpenStreetMap से हो सकती है; सत्यापन न होने पर राज्य और शहर चुनें।' : 'GPS is shared only when you click. Border or coastal locations may be checked with OpenStreetMap; if verification fails, choose a state and city.'}</p>
     </form>
-    {loading && <div className="panel" role="status">{t('features.loading')}</div>}{error && <div className="error-panel" role="alert">{error}</div>}
-    {data && <><section className="panel"><div className="flex flex-wrap justify-between gap-4"><div><p className="eyebrow">{data.location.name}, {data.location.state} {data.location.country}</p>
+    {(loading || locating) && <div className="panel" role="status">{locating ? (hi ? 'आपका स्थान ढूँढ रहे हैं…' : 'Finding your location…') : t('features.loading')}</div>}{error && <div className="error-panel" role="alert">{error}</div>}
+    {data && <><section className="panel"><div className="flex flex-wrap justify-between gap-4"><div><p className="eyebrow">{[data.location.name === 'Current location' ? (hi ? 'आपका स्थान' : 'Your location') : data.location.name, data.location.state, data.location.country].filter(Boolean).join(', ')}</p>
       <h2 className="text-5xl font-bold">{measure(data.current.temperature_2m, '°')}</h2><p>{weatherLabel(typeof data.current.weather_code === 'number' ? data.current.weather_code : null, hi)}</p></div>
       <dl className="grid grid-cols-2 md:grid-cols-3 gap-5 text-sm"><div><dt>{t('features.feelsLike')}</dt><dd>{measure(data.current.apparent_temperature, '°C')}</dd></div>
         <div><dt>{t('features.humidity')}</dt><dd>{measure(data.current.relative_humidity_2m, '%')}</dd></div><div><dt>{data.source.name.startsWith('MET Norway') ? (hi ? 'अगले घंटे का वर्षा पूर्वानुमान' : 'Next-hour precipitation forecast') : t('features.precipitation')}</dt><dd>{measure(data.current.precipitation, ' mm')}</dd></div>
@@ -152,6 +181,6 @@ export default function WeatherPage() {
           {!!risk.references?.length && <p className="text-xs mt-2">{risk.references.map((reference, index) => <span key={reference.url}>{index > 0 && ' · '}<a className="underline" href={reference.url} target="_blank" rel="noreferrer">{reference.title}</a></span>)}</p>}</div>}</section>
       <section className="panel"><h2 className="section-title">{t('features.farmGuidance')}</h2><ul className="list-disc pl-5 mt-3 space-y-2">
         <li>{t('features.rainGuidance')}</li><li>{t('features.humidityGuidance')}</li><li>{t('features.heatGuidance')}</li><li>{t('features.soilGuidance')}</li></ul></section>
-      <p className="text-sm text-gray-600"><a className="underline" href={data.source.url} target="_blank" rel="noreferrer">{data.source.name}</a> · {new Date(data.fetched_at).toLocaleString()} · {data.location.timezone}{data.source.license && <> · <a className="underline" href={data.source.license} target="_blank" rel="noreferrer">CC BY 4.0</a></>}{data.source.name.startsWith('MET Norway') && <> · {hi ? 'पूर्वानुमान अवधि के अनुसार वर्षा का योग; संभावना उपलब्ध नहीं' : 'Precipitation summed by forecast period; probability unavailable'}</>}</p></>}
+      <p className="text-sm text-gray-600"><a className="underline" href={data.source.url} target="_blank" rel="noreferrer">{data.source.name}</a> · {new Date(data.fetched_at).toLocaleString()} · {data.location.timezone}{data.source.license && <> · <a className="underline" href={data.source.license} target="_blank" rel="noreferrer">CC BY 4.0</a></>}{data.location.verification_source && <> · {hi ? 'स्थान जाँच:' : 'Location check:'} <a className="underline" href={data.location.verification_source === 'OpenStreetMap' ? 'https://www.openstreetmap.org/copyright' : 'https://www.geonames.org/'} target="_blank" rel="noreferrer">{data.location.verification_source}</a></>}{data.source.name.startsWith('MET Norway') && <> · {hi ? 'पूर्वानुमान अवधि के अनुसार वर्षा का योग; संभावना उपलब्ध नहीं' : 'Precipitation summed by forecast period; probability unavailable'}</>}</p></>}
   </div>;
 }

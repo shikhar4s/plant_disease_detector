@@ -56,7 +56,7 @@ export const featureTranslations = {
     "providerError": "Provider error", "noMarketRecords": "No market records match these filters.", "partialCoverage": "Comparison is limited to the fetched provider window:",
     "priceTrends": "7 / 30 / 90-day trends", "viewTrend": "View trend", "historyUnavailable": "Historical data unavailable", "priceChange": "Change", "collectingHistory": "Collecting history", "historyHonesty": "Charts appear only after at least two comparable observations for the same commodity, variety, market and unit. Past data is never fabricated.",
     "farmWeather": "Farm weather", "weatherSubtitle": "Current conditions and a seven-day forecast from Open-Meteo.", "city": "City", "useLocation": "Use my location",
-    "geolocationUnavailable": "Location sharing is not supported by this browser.", "locationDenied": "Location permission was denied. Search by city instead.",
+    "geolocationUnavailable": "Location sharing is not supported by this browser.", "locationDenied": "Location permission was denied. Choose a state and city instead.",
     "feelsLike": "Feels like", "humidity": "Humidity", "precipitation": "Precipitation", "wind": "Wind", "timezone": "Timezone", "sevenDayForecast": "7-day forecast", "rain": "Rain probability",
     "diseaseRisk": "Disease Risk", "riskSeparate": "Weather favourability is separate from image diagnosis and actual disease severity.", "calculateRisk": "Calculate weather risk",
     "low": "Low", "moderate": "Moderate", "high": "High", "unavailable": "Unavailable", "farmGuidance": "General farm guidance",
@@ -126,7 +126,7 @@ export const featureTranslations = {
     "providerError": "डेटा स्रोत त्रुटि", "noMarketRecords": "इन फ़िल्टरों से कोई मंडी रिकॉर्ड नहीं मिला।", "partialCoverage": "तुलना प्राप्त रिकॉर्ड तक सीमित है:",
     "priceTrends": "7 / 30 / 90 दिन के रुझान", "viewTrend": "रुझान देखें", "historyUnavailable": "पुराना डेटा उपलब्ध नहीं है", "priceChange": "बदलाव", "collectingHistory": "इतिहास एकत्र हो रहा है", "historyHonesty": "चार्ट केवल समान जिंस, किस्म, मंडी और इकाई के कम-से-कम दो रिकॉर्ड होने पर दिखेगा। पुराना डेटा बनाया नहीं जाता।",
     "farmWeather": "कृषि मौसम", "weatherSubtitle": "Open-Meteo से वर्तमान स्थिति और सात दिन का पूर्वानुमान।", "city": "शहर", "useLocation": "मेरा स्थान इस्तेमाल करें",
-    "geolocationUnavailable": "यह ब्राउज़र स्थान साझा नहीं कर सकता।", "locationDenied": "स्थान की अनुमति नहीं मिली। शहर से खोजें।", "feelsLike": "महसूस तापमान", "humidity": "आर्द्रता", "precipitation": "वर्षा", "wind": "हवा", "timezone": "समय क्षेत्र", "sevenDayForecast": "7 दिन का पूर्वानुमान", "rain": "वर्षा की संभावना",
+    "geolocationUnavailable": "यह ब्राउज़र स्थान साझा नहीं कर सकता।", "locationDenied": "स्थान की अनुमति नहीं मिली। राज्य और शहर चुनें।", "feelsLike": "महसूस तापमान", "humidity": "आर्द्रता", "precipitation": "वर्षा", "wind": "हवा", "timezone": "समय क्षेत्र", "sevenDayForecast": "7 दिन का पूर्वानुमान", "rain": "वर्षा की संभावना",
     "diseaseRisk": "रोग जोखिम", "riskSeparate": "मौसम की अनुकूलता छवि निदान और वास्तविक रोग गंभीरता से अलग है।", "calculateRisk": "मौसम जोखिम देखें", "low": "कम", "moderate": "मध्यम", "high": "उच्च", "unavailable": "उपलब्ध नहीं",
     "farmGuidance": "सामान्य कृषि मार्गदर्शन", "rainGuidance": "सिंचाई से पहले संभावित वर्षा और खेत की जल निकासी देखें।", "humidityGuidance": "अधिक आर्द्रता में पत्तियों की अनावश्यक नमी कम रखें और फसल देखें।", "heatGuidance": "गर्मी में तनाव के संकेत देखें और फसल व मिट्टी के अनुसार सिंचाई करें।", "soilGuidance": "मिट्टी की नमी सीधे जाँचें; मौसम पूर्वानुमान जड़ों की नमी नहीं मापता।",
     "platformTitle": "AI-संचालित फसल स्वास्थ्य और बाज़ार जानकारी प्लेटफ़ॉर्म", "platformSubtitle": "ईमानदार पत्ती सुझाव, लाइव मंडी रिकॉर्ड, मौसम और समझने योग्य मौसम जोखिम एक जगह।", "farmOverview": "खेत का सार",
@@ -219,4 +219,3 @@ export const featureTranslations = {
     "developer": "Développeur"
   }
 };
-

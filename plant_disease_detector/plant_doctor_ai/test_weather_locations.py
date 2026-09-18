@@ -44,10 +44,25 @@ class WeatherLocationTests(SimpleTestCase):
         self.assertEqual(request.call_count, 1)
 
     @patch('plant_doctor_ai.services.weather_service._request')
-    def test_raw_coordinates_are_rejected_in_india_only_mode(self, request):
-        with self.assertRaisesRegex(WeatherProviderError, 'GPS coordinates are unavailable'):
-            weather(17, latitude=22.7179, longitude=75.8333)
+    @patch('plant_doctor_ai.services.weather_service.verify_indian_gps', return_value=None)
+    def test_foreign_gps_coordinates_are_rejected_in_india_only_mode(self, verification, request):
+        for latitude, longitude in [(27.72, 85.32), (31.55, 74.34), (6.93, 79.84)]:
+            with self.subTest(latitude=latitude, longitude=longitude), self.assertRaisesRegex(WeatherProviderError, 'could not be confirmed inside India'):
+                weather(17, latitude=latitude, longitude=longitude)
         request.assert_not_called()
+        self.assertEqual(verification.call_count, 3)
+
+    @patch('plant_doctor_ai.services.weather_service.store_context', return_value='owned-context')
+    @patch('plant_doctor_ai.services.weather_service._request')
+    def test_indian_gps_coordinates_use_exact_location(self, request, context):
+        request.return_value = ({'current': {'temperature_2m': 25}, 'daily': {'time': []},
+                                 'timezone': 'Asia/Kolkata'}, False)
+        result = weather(17, latitude=22.7179, longitude=75.8333)
+        self.assertEqual(result['location']['country'], 'India')
+        self.assertEqual(result['location']['latitude'], 22.7179)
+        self.assertEqual(request.call_count, 1)
+        self.assertIn('/forecast', request.call_args.args[0])
+        self.assertEqual(context.call_args.args[0], 17)
 
     @patch('plant_doctor_ai.services.weather_service._request')
     def test_invalid_selection_does_not_call_provider(self, request):
@@ -100,4 +115,3 @@ class WeatherLocationTests(SimpleTestCase):
         self.assertIsNone(result['forecast'][0]['precipitation_probability_max'])
         self.assertEqual(met.call_args.args, (22.7179, 75.8333, 'Asia/Kolkata'))
         self.assertEqual(result['context_id'], 'owned-context')
-

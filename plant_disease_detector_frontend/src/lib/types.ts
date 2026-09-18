@@ -70,11 +70,10 @@ export interface MandiHistory {
 export interface WeatherData {
   context_id: string; fetched_at: string; cached: boolean;
   source: { name: string; url: string; license?: string };
-  location: { name: string; state: string; country: string; latitude: number; longitude: number; timezone: string };
+  location: { name: string; state: string; country: string; latitude: number; longitude: number; timezone: string; verification_source?: string };
   current: Record<string, number | string | null>;
   current_units: Record<string, string>;
   forecast: Array<Record<string, number | string | null>>;
   daily_units: Record<string, string>;
 }
 export interface RiskData { level: 'Low' | 'Moderate' | 'High' | 'Unavailable'; level_label?: string; score: number | null; reasons: string[]; method: string; rules_version?: string; references?: { title: string; url: string }[] }
-

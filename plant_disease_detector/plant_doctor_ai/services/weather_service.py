@@ -10,6 +10,7 @@ from django.core.cache import cache
 from django.utils import timezone
 from .context_store import store_context
 from .india_location_service import get_city
+from .india_geo_service import IndiaGeoProviderError, verify_indian_gps
 
 SOURCE = {'name': 'Open-Meteo', 'url': 'https://open-meteo.com/',
           'license': 'https://creativecommons.org/licenses/by/4.0/'}
@@ -197,8 +198,6 @@ def search_locations(query, language='en'):
 def weather(user_id, *, city='', latitude=None, longitude=None, language='en', location_id=None):
     location = None
     cached = False
-    if latitude is not None or longitude is not None:
-        raise WeatherProviderError('GPS coordinates are unavailable in India-only weather mode. Search for an Indian city instead.', status_code=400)
     if location_id is not None:
         try:
             identifier = int(str(location_id))
@@ -215,6 +214,22 @@ def weather(user_id, *, city='', latitude=None, longitude=None, language='en', l
         if location.get('country_code') != 'IN':
             raise WeatherProviderError('Weather is available only for locations in India.', status_code=400)
         latitude, longitude = _location_coordinates(location)
+    elif latitude is not None or longitude is not None:
+        try:
+            latitude, longitude = float(latitude), float(longitude)
+        except (TypeError, ValueError) as exc:
+            raise WeatherProviderError('Invalid GPS coordinates.', status_code=400) from exc
+        if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+            raise WeatherProviderError('Invalid GPS coordinates.', status_code=400)
+        try:
+            verification_source = verify_indian_gps(latitude, longitude)
+        except IndiaGeoProviderError as exc:
+            raise WeatherProviderError(str(exc), status_code=503) from exc
+        if not verification_source:
+            raise WeatherProviderError('GPS location could not be confirmed inside India. Choose a state and city instead.', status_code=400)
+        location = {'name': 'Current location', 'admin1': '', 'country': 'India',
+                    'country_code': 'IN', 'latitude': latitude, 'longitude': longitude,
+                    'timezone': 'Asia/Kolkata', 'verification_source': verification_source}
     else:
         city = str(city).strip()[:120]
         if len(city) < 2:
@@ -258,6 +273,7 @@ def weather(user_id, *, city='', latitude=None, longitude=None, language='en', l
             'state': (location or {}).get('admin1', ''), 'country': (location or {}).get('country', ''),
             'latitude': latitude, 'longitude': longitude,
             'timezone': fallback['timezone'] if fallback else forecast.get('timezone'),
+            'verification_source': (location or {}).get('verification_source', ''),
         },
         'current': current, 'current_units': fallback['current_units'] if fallback else forecast.get('current_units', {}),
         'forecast': days, 'daily_units': fallback['daily_units'] if fallback else forecast.get('daily_units', {}),
