@@ -16,8 +16,23 @@ class WeatherLocationTests(SimpleTestCase):
         result = search_locations('Rampur', 'hi')
         self.assertEqual(len(result['locations']), 2)
         self.assertNotEqual(result['locations'][0]['state'], result['locations'][1]['state'])
-        self.assertEqual(request.call_args.args[1]['count'], 10)
+        self.assertEqual(request.call_args.args[1]['count'], 50)
         self.assertEqual(request.call_args.args[1]['language'], 'hi')
+
+    @patch('plant_doctor_ai.services.weather_service._request')
+    def test_city_results_retain_region_country_and_unique_location_ids(self, request):
+        request.return_value = ({'results': [
+            {'id': 1, 'name': 'Indore', 'admin1': 'Madhya Pradesh', 'country': 'India',
+             'country_code': 'IN', 'latitude': 22.72, 'longitude': 75.83},
+            {'id': 2, 'name': 'Indore', 'admin1': 'West Virginia', 'country': 'United States',
+             'country_code': 'US', 'latitude': 38.46, 'longitude': -81.53},
+            {'id': 1, 'name': 'Indore', 'admin1': 'Madhya Pradesh', 'country': 'India',
+             'country_code': 'IN', 'latitude': 22.72, 'longitude': 75.83},
+        ]}, False)
+        result = search_locations('Indore')
+        self.assertEqual([row['id'] for row in result['locations']], [1, 2])
+        self.assertEqual([row['country_code'] for row in result['locations']], ['IN', 'US'])
+        self.assertEqual([row['state'] for row in result['locations']], ['Madhya Pradesh', 'West Virginia'])
 
     @patch('plant_doctor_ai.services.weather_service._request')
     def test_invalid_selection_does_not_call_provider(self, request):

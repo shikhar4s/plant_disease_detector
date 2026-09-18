@@ -167,20 +167,22 @@ def search_locations(query, language='en'):
     if not 2 <= len(query) <= 120:
         raise WeatherProviderError('Enter a city name between 2 and 120 characters.')
     payload, cached = _request('https://geocoding-api.open-meteo.com/v1/search',
-                              {'name': query, 'count': 10, 'language': language[:2], 'format': 'json'})
+                              {'name': query, 'count': 50, 'language': language[:2], 'format': 'json'})
     locations = []
     items = payload.get('results', [])
     if not isinstance(items, list):
         raise WeatherProviderError('Weather information is temporarily unavailable.')
-    for item in items[:10]:
+    seen_ids = set()
+    for item in items[:50]:
         try:
             latitude, longitude = _location_coordinates(item)
             identifier = int(item['id'])
             name = str(item['name'])[:120]
-            if identifier <= 0 or not name:
+            if identifier <= 0 or not name or identifier in seen_ids:
                 continue
         except (WeatherProviderError, KeyError, TypeError, ValueError, AttributeError):
             continue
+        seen_ids.add(identifier)
         locations.append({
             'id': identifier, 'name': name, 'latitude': latitude, 'longitude': longitude,
             'state': str(item.get('admin1', ''))[:120], 'district': str(item.get('admin2', ''))[:120],
