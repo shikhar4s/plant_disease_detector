@@ -167,7 +167,8 @@ def search_locations(query, language='en'):
     if not 2 <= len(query) <= 120:
         raise WeatherProviderError('Enter a city name between 2 and 120 characters.')
     payload, cached = _request('https://geocoding-api.open-meteo.com/v1/search',
-                              {'name': query, 'count': 50, 'language': language[:2], 'format': 'json'})
+                              {'name': query, 'count': 50, 'countryCode': 'IN',
+                               'language': language[:2], 'format': 'json'})
     locations = []
     items = payload.get('results', [])
     if not isinstance(items, list):
@@ -178,7 +179,7 @@ def search_locations(query, language='en'):
             latitude, longitude = _location_coordinates(item)
             identifier = int(item['id'])
             name = str(item['name'])[:120]
-            if identifier <= 0 or not name or identifier in seen_ids:
+            if identifier <= 0 or not name or identifier in seen_ids or item.get('country_code') != 'IN':
                 continue
         except (WeatherProviderError, KeyError, TypeError, ValueError, AttributeError):
             continue
@@ -195,6 +196,8 @@ def search_locations(query, language='en'):
 def weather(user_id, *, city='', latitude=None, longitude=None, language='en', location_id=None):
     location = None
     cached = False
+    if latitude is not None or longitude is not None:
+        raise WeatherProviderError('GPS coordinates are unavailable in India-only weather mode. Search for an Indian city instead.', status_code=400)
     if location_id is not None:
         try:
             identifier = int(str(location_id))
@@ -204,24 +207,22 @@ def weather(user_id, *, city='', latitude=None, longitude=None, language='en', l
             raise WeatherProviderError('Choose a valid location from the search results.') from exc
         location, cached = _request('https://geocoding-api.open-meteo.com/v1/get',
                                     {'id': identifier, 'language': language[:2], 'format': 'json'})
-        latitude, longitude = _location_coordinates(location)
-    elif latitude is None or longitude is None:
-        city = str(city).strip()[:120]
-        if len(city) < 2:
-            raise WeatherProviderError('Enter a city or share a location.')
-        geocoded, cached = _request('https://geocoding-api.open-meteo.com/v1/search',
-                                   {'name': city, 'count': 1, 'language': language[:2], 'format': 'json'})
-        if not geocoded.get('results'):
-            raise WeatherProviderError('No matching city was found.')
-        location = geocoded['results'][0]
+        if location.get('country_code') != 'IN':
+            raise WeatherProviderError('Weather is available only for locations in India.', status_code=400)
         latitude, longitude = _location_coordinates(location)
     else:
-        try:
-            latitude, longitude = float(latitude), float(longitude)
-        except (TypeError, ValueError) as exc:
-            raise WeatherProviderError('Invalid location coordinates.') from exc
-        if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
-            raise WeatherProviderError('Invalid location coordinates.')
+        city = str(city).strip()[:120]
+        if len(city) < 2:
+            raise WeatherProviderError('Enter an Indian city.')
+        geocoded, cached = _request('https://geocoding-api.open-meteo.com/v1/search',
+                                   {'name': city, 'count': 1, 'countryCode': 'IN',
+                                    'language': language[:2], 'format': 'json'})
+        if not geocoded.get('results'):
+            raise WeatherProviderError('No matching Indian city was found.')
+        location = geocoded['results'][0]
+        if location.get('country_code') != 'IN':
+            raise WeatherProviderError('Weather is available only for locations in India.', status_code=400)
+        latitude, longitude = _location_coordinates(location)
     params = {
         'latitude': latitude, 'longitude': longitude, 'timezone': 'auto', 'forecast_days': 7,
         'current': 'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m',

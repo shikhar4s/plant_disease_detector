@@ -209,7 +209,7 @@ class WeatherView(APIView):
                 language=request.headers.get('Language', 'en'))
             return Response(result)
         except WeatherProviderError as exc:
-            code = 400 if str(exc).startswith(('Enter', 'Invalid', 'No matching')) else 503
+            code = 400 if exc.status_code == 400 or str(exc).startswith(('Enter', 'Invalid', 'No matching', 'Choose')) else 503
             return Response({'error': str(exc), 'source': 'Open-Meteo'}, status=code)
 
 

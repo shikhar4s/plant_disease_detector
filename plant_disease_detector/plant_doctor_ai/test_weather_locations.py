@@ -9,14 +9,15 @@ class WeatherLocationTests(SimpleTestCase):
     @patch('plant_doctor_ai.services.weather_service._request')
     def test_ambiguous_city_returns_distinct_regions_and_skips_invalid_coordinates(self, request):
         request.return_value = ({'results': [
-            {'id': 1, 'name': 'Rampur', 'admin1': 'Uttar Pradesh', 'country': 'India', 'latitude': 28.8, 'longitude': 79},
-            {'id': 2, 'name': 'Rampur', 'admin1': 'Himachal Pradesh', 'country': 'India', 'latitude': 31.4, 'longitude': 77.6},
+            {'id': 1, 'name': 'Rampur', 'admin1': 'Uttar Pradesh', 'country': 'India', 'country_code': 'IN', 'latitude': 28.8, 'longitude': 79},
+            {'id': 2, 'name': 'Rampur', 'admin1': 'Himachal Pradesh', 'country': 'India', 'country_code': 'IN', 'latitude': 31.4, 'longitude': 77.6},
             {'id': 3, 'name': 'Invalid', 'latitude': 190, 'longitude': 79},
         ]}, False)
         result = search_locations('Rampur', 'hi')
         self.assertEqual(len(result['locations']), 2)
         self.assertNotEqual(result['locations'][0]['state'], result['locations'][1]['state'])
         self.assertEqual(request.call_args.args[1]['count'], 50)
+        self.assertEqual(request.call_args.args[1]['countryCode'], 'IN')
         self.assertEqual(request.call_args.args[1]['language'], 'hi')
 
     @patch('plant_doctor_ai.services.weather_service._request')
@@ -30,9 +31,23 @@ class WeatherLocationTests(SimpleTestCase):
              'country_code': 'IN', 'latitude': 22.72, 'longitude': 75.83},
         ]}, False)
         result = search_locations('Indore')
-        self.assertEqual([row['id'] for row in result['locations']], [1, 2])
-        self.assertEqual([row['country_code'] for row in result['locations']], ['IN', 'US'])
-        self.assertEqual([row['state'] for row in result['locations']], ['Madhya Pradesh', 'West Virginia'])
+        self.assertEqual([row['id'] for row in result['locations']], [1])
+        self.assertEqual([row['country_code'] for row in result['locations']], ['IN'])
+        self.assertEqual([row['state'] for row in result['locations']], ['Madhya Pradesh'])
+
+    @patch('plant_doctor_ai.services.weather_service._request')
+    def test_foreign_selected_location_is_rejected_before_forecast(self, request):
+        request.return_value = ({'id': 2, 'name': 'Indore', 'country_code': 'US',
+                                 'latitude': 38.46, 'longitude': -81.53}, False)
+        with self.assertRaisesRegex(WeatherProviderError, 'only for locations in India'):
+            weather(17, location_id='2')
+        self.assertEqual(request.call_count, 1)
+
+    @patch('plant_doctor_ai.services.weather_service._request')
+    def test_raw_coordinates_are_rejected_in_india_only_mode(self, request):
+        with self.assertRaisesRegex(WeatherProviderError, 'GPS coordinates are unavailable'):
+            weather(17, latitude=22.7179, longitude=75.8333)
+        request.assert_not_called()
 
     @patch('plant_doctor_ai.services.weather_service._request')
     def test_invalid_selection_does_not_call_provider(self, request):
@@ -45,10 +60,10 @@ class WeatherLocationTests(SimpleTestCase):
     @patch('plant_doctor_ai.services.weather_service._request')
     def test_selected_city_uses_provider_coordinates_and_names(self, request, context):
         request.side_effect = [
-            ({'id': 1, 'name': 'Rampur', 'admin1': 'Himachal Pradesh', 'country': 'India', 'latitude': 31.4, 'longitude': 77.6}, False),
+            ({'id': 1, 'name': 'Rampur', 'admin1': 'Himachal Pradesh', 'country': 'India', 'country_code': 'IN', 'latitude': 31.4, 'longitude': 77.6}, False),
             ({'current': {'temperature_2m': 25}, 'daily': {'time': []}, 'timezone': 'Asia/Kolkata'}, False),
         ]
-        result = weather(17, location_id='1', latitude='99', longitude='99')
+        result = weather(17, location_id='1')
         self.assertEqual(result['location']['state'], 'Himachal Pradesh')
         self.assertEqual(request.call_args.args[1]['latitude'], 31.4)
         self.assertEqual(result['context_id'], 'owned-context')
@@ -58,18 +73,31 @@ class WeatherLocationTests(SimpleTestCase):
     def test_city_not_found_is_an_empty_list(self, request):
         self.assertEqual(search_locations('Unknown')['locations'], [])
 
+    @patch('plant_doctor_ai.services.weather_service._request')
+    def test_direct_city_query_uses_india_filter_and_rejects_foreign_response(self, request):
+        request.return_value = ({'results': [{'id': 1, 'name': 'London', 'country_code': 'GB',
+                                              'latitude': 51.5, 'longitude': -0.1}]}, False)
+        with self.assertRaisesRegex(WeatherProviderError, 'only for locations in India'):
+            weather(17, city='London')
+        self.assertEqual(request.call_args.args[1]['countryCode'], 'IN')
+
     @patch('plant_doctor_ai.services.weather_service.store_context', return_value='owned-context')
     @patch('plant_doctor_ai.services.weather_service._met_forecast')
     @patch('plant_doctor_ai.services.weather_service._request')
     def test_rate_limited_forecast_uses_attributed_fallback(self, request, met, context):
-        request.side_effect = WeatherProviderError('rate limited', status_code=429)
+        request.side_effect = [
+            ({'id': 1, 'name': 'Indore', 'admin1': 'Madhya Pradesh', 'country': 'India',
+              'country_code': 'IN', 'latitude': 22.7179, 'longitude': 75.8333,
+              'timezone': 'Asia/Kolkata'}, False),
+            WeatherProviderError('rate limited', status_code=429),
+        ]
         met.return_value = ({'current': {'temperature_2m': 25}, 'forecast': [
             {'date': '2026-09-17', 'precipitation_probability_max': None}],
             'current_units': {}, 'daily_units': {}, 'timezone': 'UTC',
             'source': {'name': 'MET Norway (forecast fallback)', 'url': 'https://api.met.no/'}}, False)
-        result = weather(17, latitude=22.7179, longitude=75.8333)
+        result = weather(17, location_id='1')
         self.assertEqual(result['source']['name'], 'MET Norway (forecast fallback)')
         self.assertIsNone(result['forecast'][0]['precipitation_probability_max'])
-        self.assertEqual(met.call_args.args, (22.7179, 75.8333, 'UTC'))
+        self.assertEqual(met.call_args.args, (22.7179, 75.8333, 'Asia/Kolkata'))
         self.assertEqual(result['context_id'], 'owned-context')
 

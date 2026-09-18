@@ -28,11 +28,9 @@ export default function WeatherPage() {
   const [locationError, setLocationError] = useState('');
   const [searched, setSearched] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
-  const [locating, setLocating] = useState(false);
   const weatherRequest = useRef<AbortController | null>(null);
   const riskRequest = useRef<AbortController | null>(null);
   const locationRequest = useRef<AbortController | null>(null);
-  const operation = useRef(0);
   const query = city.trim();
   const regions = Array.from(new Map(locations.map(location => [regionKey(location), location])).entries());
   const matchingLocations = locations.filter(location => regionKey(location) === selectedRegion);
@@ -44,7 +42,6 @@ export default function WeatherPage() {
   }, [i18n.language, selectedImage?.id]);
 
   useEffect(() => () => {
-    operation.current += 1;
     weatherRequest.current?.abort();
     riskRequest.current?.abort();
     locationRequest.current?.abort();
@@ -77,32 +74,16 @@ export default function WeatherPage() {
   }
 
   async function load(path: string) {
-    operation.current += 1;
     weatherRequest.current?.abort();
     riskRequest.current?.abort();
     const controller = new AbortController();
     weatherRequest.current = controller;
-    setLoading(true); setLocating(false); setError(''); setRisk(null); setRiskLoading(false); setData(null); setWeatherContextId('');
+    setLoading(true); setError(''); setRisk(null); setRiskLoading(false); setData(null); setWeatherContextId('');
     try {
       const result = await api<WeatherData>(path, { signal: controller.signal, headers: { Language: i18n.language } });
       if (!controller.signal.aborted) { setData(result); setWeatherContextId(result.context_id); }
     } catch (cause) { if (!controller.signal.aborted) setError(messageOf(cause)); }
     finally { if (!controller.signal.aborted) setLoading(false); }
-  }
-  function geolocate() {
-    if (!navigator.geolocation) { setError(t('features.geolocationUnavailable')); return; }
-    const attempt = ++operation.current;
-    setLocating(true); setError('');
-    navigator.geolocation.getCurrentPosition(position => {
-      if (operation.current !== attempt) return;
-      void load('/api/plant_doctor_ai/weather/?' + new URLSearchParams({
-        latitude: String(position.coords.latitude), longitude: String(position.coords.longitude),
-      }));
-    }, cause => {
-      if (operation.current !== attempt) return;
-      setLocating(false);
-      setError(cause.code === 1 ? t('features.locationDenied') : (hi ? 'स्थान नहीं मिल सका। शहर खोजकर चुनें और फिर कोशिश करें।' : 'Could not find your location. Search and select a city instead.'));
-    }, { timeout: 10000, maximumAge: 300000 });
   }
   async function calculateRisk() {
     if (!data) return;
@@ -121,7 +102,7 @@ export default function WeatherPage() {
     finally { if (!controller.signal.aborted) setRiskLoading(false); }
   }
   return <div className="max-w-6xl mx-auto space-y-6"><header><p className="eyebrow">{t('features.farmWeather')}</p><h1 className="page-title">{t('features.weather')}</h1>
-    <p className="page-subtitle">{t('features.weatherSubtitle')}</p></header>
+    <p className="page-subtitle">{t('features.weatherSubtitle')} {hi ? 'केवल भारत के स्थान उपलब्ध हैं।' : 'Indian locations only.'}</p></header>
     <form onSubmit={event => {
       event.preventDefault();
       if (selectedLocation) void load('/api/plant_doctor_ai/weather/?location_id=' + encodeURIComponent(selectedLocation));
@@ -132,10 +113,10 @@ export default function WeatherPage() {
           placeholder={hi ? 'जैसे Indore, Bhopal या Delhi' : 'e.g. Indore, Bhopal or Delhi'} aria-describedby="location-search-help"
           onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void findLocations(); } }}
           onChange={event => { locationRequest.current?.abort(); weatherRequest.current?.abort(); riskRequest.current?.abort(); setCity(event.target.value); setSelectedRegion(''); setSelectedLocation(''); setLocations([]); setSearched(false); setLocationLoading(false); setLoading(false); setRiskLoading(false); setLocationError(''); setError(''); setData(null); setRisk(null); setWeatherContextId(''); }} /></label>
-        <label className="field-label">{hi ? 'राज्य / क्षेत्र और देश' : 'State / region and country'}
+        <label className="field-label">{hi ? 'राज्य / क्षेत्र' : 'State / region'}
           <select className="field" value={selectedRegion} disabled={!regions.length || locationLoading} onChange={event => { setSelectedRegion(event.target.value); setSelectedLocation(''); }}>
             <option value="">{hi ? 'क्षेत्र चुनें' : 'Choose a region'}</option>
-            {regions.map(([key, location]) => <option key={key} value={key}>{[location.state || (hi ? 'क्षेत्र उपलब्ध नहीं' : 'Region unavailable'), location.country].filter(Boolean).join(', ')}</option>)}
+            {regions.map(([key, location]) => <option key={key} value={key}>{location.state || (hi ? 'क्षेत्र उपलब्ध नहीं' : 'Region unavailable')}</option>)}
           </select>
         </label>
         <label className="field-label">{hi ? 'शहर / स्थान' : 'City / location'}
@@ -145,18 +126,17 @@ export default function WeatherPage() {
           </select>
         </label>
       </div>
-      <p id="location-search-help" className="text-sm text-gray-600">{hi ? 'शहर का अंग्रेज़ी नाम लिखकर खोजें, फिर सही क्षेत्र और स्थान चुनें। Open-Meteo सभी हिन्दी वर्तनियों को नहीं पहचानता।' : 'Search by city name, then choose the correct region and location. For best results, use an English spelling.'}</p>
+      <p id="location-search-help" className="text-sm text-gray-600">{hi ? 'केवल भारतीय शहर उपलब्ध हैं। शहर का अंग्रेज़ी नाम लिखें, फिर सही राज्य और स्थान चुनें।' : 'Only Indian cities are available. Search by city name, then choose the correct state and location.'}</p>
       <div role="status" aria-live="polite" className="text-sm text-gray-600">
-        {locationLoading ? (hi ? 'स्थान खोज रहे हैं…' : 'Finding locations…') : searched && !locations.length ? (hi ? 'कोई स्थान नहीं मिला। अंग्रेज़ी वर्तनी या पास के शहर का नाम आज़माएँ।' : 'No matching locations. Try an English spelling or a nearby city.') : locations.length > 0 ? (hi ? `${locations.length} स्थान मिले। सही क्षेत्र और स्थान चुनें।` : `${locations.length} locations found. Choose the correct region and location.`) : ''}
+        {locationLoading ? (hi ? 'स्थान खोज रहे हैं…' : 'Finding locations…') : searched && !locations.length ? (hi ? 'भारत में कोई स्थान नहीं मिला। अंग्रेज़ी वर्तनी या पास के शहर का नाम आज़माएँ।' : 'No matching Indian locations. Try an English spelling or a nearby city.') : locations.length > 0 ? (hi ? `${locations.length} स्थान मिले। सही राज्य और स्थान चुनें।` : `${locations.length} locations found in India. Choose the correct state and location.`) : ''}
       </div>
       {locationError && <p className="error-panel" role="alert">{locationError}</p>}
       <div className="flex flex-wrap gap-3">
         <button type="button" disabled={locationLoading || loading} onClick={() => void findLocations()} className="secondary-button disabled:opacity-50">{hi ? 'शहर खोजें' : 'Find cities'}</button>
         <button disabled={!selectedLocation || loading || locationLoading} className="primary-button disabled:opacity-50">{hi ? 'मौसम देखें' : 'Show weather'}</button>
-        <button type="button" disabled={locating || loading} onClick={geolocate} className="secondary-button disabled:opacity-50">{t('features.useLocation')}</button>
       </div>
     </form>
-    {(loading || locating) && <div className="panel" role="status">{locating ? (hi ? 'आपका स्थान ढूँढ रहे हैं…' : 'Finding your location…') : t('features.loading')}</div>}{error && <div className="error-panel" role="alert">{error}</div>}
+    {loading && <div className="panel" role="status">{t('features.loading')}</div>}{error && <div className="error-panel" role="alert">{error}</div>}
     {data && <><section className="panel"><div className="flex flex-wrap justify-between gap-4"><div><p className="eyebrow">{data.location.name}, {data.location.state} {data.location.country}</p>
       <h2 className="text-5xl font-bold">{measure(data.current.temperature_2m, '°')}</h2><p>{weatherLabel(typeof data.current.weather_code === 'number' ? data.current.weather_code : null, hi)}</p></div>
       <dl className="grid grid-cols-2 md:grid-cols-3 gap-5 text-sm"><div><dt>{t('features.feelsLike')}</dt><dd>{measure(data.current.apparent_temperature, '°C')}</dd></div>
