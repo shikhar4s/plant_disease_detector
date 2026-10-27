@@ -1,5 +1,4 @@
-# Uses the existing free preview database in Shikhar's workspace.
-# This database expires on 2026-10-11; connect a lasting PostgreSQL provider or upgrade before then.
+# PostgreSQL is hosted on Neon Free; set DATABASE_URL securely in Render.
 services:
   - type: web
     name: shikhar-plantdoc
@@ -21,9 +20,7 @@ services:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        fromDatabase:
-          name: plantdoc-preview-db
-          property: connectionString
+        sync: false
       - key: GEMINI_MODEL
         value: gemini-3.6-flash
       - key: GEMINI_API_KEY
